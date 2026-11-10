@@ -643,10 +643,11 @@ pre.code::-webkit-scrollbar-thumb{background:#3A3E44;border-radius:9px}
           <div class="field">
             <label for="cdnSel">外链走哪个域名</label>
             <select class="sel" id="cdnSel">
-              <option value="jsdelivr">jsDelivr CDN · 国内一般能直连</option>
-              <option value="raw">raw.githubusercontent.com · 国内可能不稳</option>
+              <option value="jsdelivr">jsDelivr · cdn.jsdelivr.net</option>
+              <option value="fastly">jsDelivr · fastly.jsdelivr.net</option>
+              <option value="raw">raw.githubusercontent.com</option>
             </select>
-            <div class="hint">两者指向同一份文件。jsDelivr 有缓存，换图后可能需要缓存刷新；raw 每次直连 GitHub。</div>
+            <div class="hint">三个域名指向同一份文件，只影响直链前缀。页内预览会自动换域名重试，某个域名被网络掐断也能显示。</div>
           </div>
 
           <div class="field">
@@ -947,15 +948,42 @@ pre.code::-webkit-scrollbar-thumb{background:#3A3E44;border-radius:9px}
     return String(key).split('/').map(encodeURIComponent).join('/');
   }
 
-  function urlFor(key) {
+  /* 三个域名指向同一份文件；按设置的首选排前面，加载失败时逐个往下退 */
+  function urlList(key) {
     const repo = repoPath();
-    const branch = cfg.branch || 'main';
+    const branch = cfg.branch || 'master';
     const p = encodePath(key);
-    if (cfg.cdn === 'raw') {
-      return 'https://raw.githubusercontent.com/' + repo + '/' + branch + '/' + p;
-    }
-    return 'https://cdn.jsdelivr.net/gh/' + repo + '@' + branch + '/' + p;
+    const jsd = 'https://cdn.jsdelivr.net/gh/' + repo + '@' + branch + '/' + p;
+    const fastly = 'https://fastly.jsdelivr.net/gh/' + repo + '@' + branch + '/' + p;
+    const rawUrl = 'https://raw.githubusercontent.com/' + repo + '/' + branch + '/' + p;
+    if (cfg.cdn === 'raw') return [rawUrl, jsd, fastly];
+    if (cfg.cdn === 'fastly') return [fastly, jsd, rawUrl];
+    return [jsd, fastly, rawUrl];
   }
+
+  function urlFor(key) {
+    return urlList(key)[0];
+  }
+
+  function imgAttrs(it) {
+    const list = it.src === 'github' ? urlList(it.key) : [it.url];
+    return 'src="' + esc(list[0]) + '" data-alt="' + esc(list.join('|')) + '" data-i="0"';
+  }
+
+  // 图片加载失败时按候选域名逐个重试，全挂了就压暗提示
+  document.addEventListener('error', function (e) {
+    const img = e.target;
+    if (!img || img.tagName !== 'IMG' || !img.dataset || !img.dataset.alt) return;
+    const list = img.dataset.alt.split('|');
+    const i = Number(img.dataset.i || 0);
+    if (i + 1 < list.length) {
+      img.dataset.i = String(i + 1);
+      img.src = list[i + 1];
+    } else {
+      img.dataset.dead = '1';
+      img.style.opacity = '.18';
+    }
+  }, true);
 
   function ghStatusError(status, data) {
     const msg = (data && data.message) || '';
@@ -1105,7 +1133,7 @@ pre.code::-webkit-scrollbar-thumb{background:#3A3E44;border-radius:9px}
   function recentHtml(it) {
     return '<div class="tile" data-key="' + esc(it.key) + '">' +
       '<button class="tile-thumb" type="button" data-act="preview" aria-label="预览">' +
-        '<img loading="lazy" src="' + esc(it.url) + '" alt="' + esc(it.name) + '">' +
+        '<img loading="lazy" ' + imgAttrs(it) + ' alt="' + esc(it.name) + '">' +
       '</button>' +
       '<div class="tile-body">' +
         '<div class="tile-name">' + esc(it.name) + '</div>' +
@@ -1118,7 +1146,7 @@ pre.code::-webkit-scrollbar-thumb{background:#3A3E44;border-radius:9px}
     const sel = state.selected.has(it.key) ? ' sel' : '';
     return '<div class="tile' + sel + '" data-key="' + esc(it.key) + '">' +
       '<button class="tile-thumb" type="button" data-act="preview" aria-label="预览 ' + esc(it.name) + '">' +
-        '<img loading="lazy" src="' + esc(it.url) + '" alt="' + esc(it.name) + '">' +
+        '<img loading="lazy" ' + imgAttrs(it) + ' alt="' + esc(it.name) + '">' +
       '</button>' +
       '<button class="tile-check" type="button" data-act="select" aria-label="选择这张">' + ICON.check + '</button>' +
       '<div class="tile-body">' +
@@ -1138,7 +1166,7 @@ pre.code::-webkit-scrollbar-thumb{background:#3A3E44;border-radius:9px}
     return '<div class="row' + sel + '" data-key="' + esc(it.key) + '">' +
       '<button class="row-check" type="button" data-act="select" aria-label="选择">' + ICON.check + '</button>' +
       '<button class="row-thumb" type="button" data-act="preview" aria-label="预览">' +
-        '<img loading="lazy" src="' + esc(it.url) + '" alt="">' +
+        '<img loading="lazy" ' + imgAttrs(it) + ' alt="">' +
       '</button>' +
       '<div class="row-main">' +
         '<div class="row-name">' + esc(it.name) + '</div>' +
@@ -1499,7 +1527,12 @@ pre.code::-webkit-scrollbar-thumb{background:#3A3E44;border-radius:9px}
 
   /* ================= 灯箱 ================= */
   function openLightbox(item) {
-    $('lbImg').src = item.url;
+    const lbList = item.src === 'github' ? urlList(item.key) : [item.url];
+    const lbImg = $('lbImg');
+    lbImg.dataset.alt = lbList.join('|');
+    lbImg.dataset.i = '0';
+    lbImg.style.opacity = '';
+    lbImg.src = lbList[0];
     $('lbName').textContent = item.name;
     $('lbMeta').textContent = fmtSize(item.size) + ' · ' + (item.src === 'github' ? 'GitHub' : '本机') + ' · ' + item.key;
     $('lbLink').value = item.url;
@@ -1512,7 +1545,12 @@ pre.code::-webkit-scrollbar-thumb{background:#3A3E44;border-radius:9px}
   function closeLightbox() {
     $('lightbox').classList.remove('on');
     $('lightbox').setAttribute('aria-hidden', 'true');
-    $('lbImg').src = '';
+    const lbImg = $('lbImg');
+    lbImg.removeAttribute('data-alt');
+    lbImg.removeAttribute('data-i');
+    lbImg.removeAttribute('data-dead');
+    lbImg.style.opacity = '';
+    lbImg.src = '';
     currentLb = null;
   }
 
