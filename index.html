@@ -1,0 +1,1939 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>图床控制台 · GitHub 图床</title>
+<!-- 字体：先 preconnect，再正常加载样式表；不预加载具体分片，避免猜错地址 -->
+<link rel="preconnect" href="https://miaoda.feishu.cn">
+<link rel="stylesheet" href="https://miaoda.feishu.cn/fonts/css2?family=Noto+Sans+SC:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='4' fill='%231B1E22'/%3E%3Cpath d='M7 11l9-5 9 5-9 5-9-5z' fill='%23EFC53F'/%3E%3Cpath d='M7 16l9 5 9-5' stroke='%23EFC53F' stroke-width='2' fill='none' opacity='.55'/%3E%3Cpath d='M7 21l9 5 9-5' stroke='%23EFC53F' stroke-width='2' fill='none' opacity='.3'/%3E%3C/svg%3E">
+<style>
+:root{
+  --ink:#14171B;
+  --ink-soft:#3D434A;
+  --mute:#767C85;
+  --faint:#9AA0A7;
+  --paper:#EDEEE9;
+  --surface:#FAFAF7;
+  --surface-2:#F3F3EE;
+  --line:#D4D5CE;
+  --line-soft:#E2E3DD;
+  --accent:#EFC53F;
+  --accent-deep:#C79A12;
+  --rail:#1B1E22;
+  --rail-soft:#2A2E34;
+  --danger:#A93626;
+  --ok:#22684A;
+  --mono:"IBM Plex Mono","Noto Sans SC",ui-monospace,monospace;
+  --sans:"Noto Sans SC","PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+  --r:3px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--paper);
+  color:var(--ink);
+  font-family:var(--sans);
+  font-size:14px;
+  line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+}
+h1,h2,h3{margin:0;font-weight:700;letter-spacing:-0.01em}
+p{margin:0}
+button{font-family:inherit;font-size:inherit;color:inherit;cursor:pointer}
+input,select,textarea{font-family:inherit;font-size:16px;color:var(--ink)}
+a{color:inherit}
+svg{display:block}
+::selection{background:var(--accent);color:var(--ink)}
+
+/* ---------- 布局：左侧导轨 + 主区 ---------- */
+.app{display:grid;grid-template-columns:1fr;grid-template-rows:auto 1fr;min-height:100vh}
+
+.rail{
+  background:var(--rail);
+  color:#E7E8E2;
+  display:flex;
+  align-items:center;
+  gap:2px;
+  padding:0 10px;
+  overflow-x:auto;
+  scrollbar-width:none;
+  border-bottom:1px solid #000;
+}
+.rail::-webkit-scrollbar{display:none}
+.brand{
+  display:flex;align-items:center;gap:8px;
+  padding:10px 12px 10px 4px;
+  flex:0 0 auto;
+  border-right:1px solid var(--rail-soft);
+  margin-right:6px;
+}
+.brand-mark{width:22px;height:22px;flex:0 0 auto}
+.brand-name{font-weight:700;font-size:13px;letter-spacing:.02em;white-space:nowrap}
+.tabs{display:flex;gap:2px;flex:1 1 auto}
+.tab{
+  appearance:none;border:0;background:transparent;
+  color:#A9AFB6;
+  display:flex;align-items:center;gap:7px;
+  padding:8px 12px;
+  border-radius:var(--r);
+  font-size:13px;white-space:nowrap;
+  position:relative;
+  transition:color .15s,background .15s;
+}
+.tab svg{width:15px;height:15px;stroke:currentColor;stroke-width:1.7;fill:none;flex:0 0 auto}
+.tab:hover{color:#EDEEE8;background:var(--rail-soft)}
+.tab.on{color:var(--accent)}
+.tab.on::after{
+  content:"";position:absolute;left:12px;right:12px;bottom:1px;height:2px;background:var(--accent);
+}
+.rail-foot{padding-left:10px;display:none}
+
+.main{padding:22px 16px 64px;min-width:0}
+.wrap{max-width:1160px;margin:0 auto}
+
+/* ---------- 顶栏 ---------- */
+.topbar{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end;justify-content:space-between;padding-bottom:16px;border-bottom:1px solid var(--line)}
+.head h1{font-size:26px;line-height:1.2}
+.head .sub{color:var(--mute);font-size:12.5px;margin-top:6px;max-width:56ch}
+.statuses{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.chip{
+  display:inline-flex;align-items:center;gap:6px;
+  border:1px solid var(--line);
+  background:var(--surface);
+  padding:4px 9px;border-radius:100px;
+  font-size:11.5px;color:var(--ink-soft);font-family:var(--mono);
+}
+.chip .dot{width:6px;height:6px;border-radius:50%;background:var(--faint)}
+.chip.local .dot{background:var(--accent-deep)}
+.chip.remote .dot{background:var(--ok);box-shadow:0 0 0 3px rgba(34,104,74,.16)}
+.chip.warn .dot{background:var(--danger)}
+
+/* ---------- 容量尺 ---------- */
+.cap{width:190px;flex:0 0 auto}
+.cap-head{display:flex;justify-content:space-between;align-items:baseline;font-family:var(--mono);font-size:10.5px;color:var(--mute);letter-spacing:.02em}
+.cap-track{
+  position:relative;height:9px;margin-top:5px;
+  border:1px solid var(--line);
+  background:
+    repeating-linear-gradient(90deg,var(--line-soft) 0 1px,transparent 1px 5px),
+    var(--surface-2);
+  border-radius:1px;overflow:hidden;
+}
+.cap-fill{position:absolute;left:0;top:0;bottom:0;width:0;background:var(--accent);transition:width .35s ease}
+.cap-note{font-family:var(--mono);font-size:10px;color:var(--faint);margin-top:4px;text-align:right}
+
+/* ---------- 视图通用 ---------- */
+.view{display:none;padding-top:20px;animation:viewIn .18s ease both}
+.view.on{display:block}
+@keyframes viewIn{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.view{animation:none}}
+
+.sec{border-top:1px solid var(--line);padding-top:14px;margin-top:26px}
+.sec-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:12px}
+.sec-title{font-size:13px;font-weight:700;letter-spacing:.06em}
+.sec-note{font-size:12px;color:var(--mute);font-family:var(--mono)}
+
+/* ---------- 按钮 ---------- */
+.btn{
+  appearance:none;border:1px solid var(--line);background:var(--surface);
+  padding:7px 13px;border-radius:var(--r);
+  font-size:12.5px;font-weight:500;color:var(--ink);
+  display:inline-flex;align-items:center;gap:6px;
+  min-height:34px;
+  transition:background .12s,border-color .12s,color .12s;
+}
+.btn svg{width:14px;height:14px;stroke:currentColor;stroke-width:1.7;fill:none}
+.btn:hover{background:#fff;border-color:#BFC0B8}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn-primary{background:var(--accent);border-color:var(--accent);color:var(--ink);font-weight:700}
+.btn-primary:hover{background:#F5D065;border-color:#E0B62A}
+.btn-ghost{background:transparent;border-color:transparent;color:var(--ink-soft)}
+.btn-ghost:hover{background:rgba(20,23,27,.05)}
+.btn-danger{color:var(--danger);border-color:#E0C9C4}
+.btn-danger:hover{background:#FBEDEA;border-color:#D2A99F}
+.btn-sm{padding:4px 9px;min-height:26px;font-size:11.5px}
+.btn-icon{padding:6px;min-height:30px;width:30px;justify-content:center}
+
+/* ---------- 入库口 ---------- */
+.dz{
+  position:relative;
+  border:1px dashed #BFC0B8;
+  border-radius:var(--r);
+  background:
+    linear-gradient(var(--surface),var(--surface)) padding-box,
+    var(--surface);
+  padding:28px 20px;
+  text-align:center;
+  transition:border-color .15s,background .15s;
+  cursor:pointer;
+}
+.dz:hover{border-color:#9C9E93;background:#fff}
+.dz.drag{border-color:var(--accent-deep);background:#FFFCF0;border-style:solid}
+.dz::before,.dz::after,
+.dz .corner-b,.dz .corner-d{
+  content:"";position:absolute;width:12px;height:12px;border-color:var(--ink);border-style:solid;opacity:.34;
+}
+.dz::before{left:6px;top:6px;border-width:1.5px 0 0 1.5px}
+.dz::after{right:6px;bottom:6px;border-width:0 1.5px 1.5px 0}
+.dz .corner-b{right:6px;top:6px;border-width:1.5px 1.5px 0 0}
+.dz .corner-d{left:6px;bottom:6px;border-width:0 0 1.5px 1.5px}
+.dz-icon{width:30px;height:30px;margin:0 auto 10px;stroke:var(--ink);stroke-width:1.5;fill:none;opacity:.8}
+.dz-title{font-size:15px;font-weight:500}
+.dz-hint{color:var(--mute);font-size:12.5px;margin-top:6px;font-family:var(--mono)}
+.dz-key{margin-top:12px;display:inline-flex;gap:6px;align-items:center;font-size:11.5px;color:var(--mute)}
+.dz-key kbd{border:1px solid var(--line);border-bottom-width:2px;border-radius:3px;padding:1px 5px;font-family:var(--mono);font-size:10.5px;background:var(--surface-2)}
+
+/* 上传选项 */
+.opts{display:flex;flex-wrap:wrap;gap:16px;align-items:center;margin-top:12px;padding:10px 12px;background:var(--surface-2);border:1px solid var(--line-soft);border-radius:var(--r)}
+.opt{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink-soft);min-height:26px}
+.opt-label{color:var(--mute);font-size:11.5px;font-family:var(--mono)}
+.switch{position:relative;width:34px;height:18px;flex:0 0 auto}
+.switch input{position:absolute;inset:0;opacity:0;cursor:pointer;margin:0;width:100%;height:100%;z-index:2}
+.switch .track{position:absolute;inset:0;background:#CFD0C8;border-radius:100px;transition:background .15s}
+.switch .knob{position:absolute;top:2px;left:2px;width:14px;height:14px;background:#fff;border-radius:50%;transition:transform .15s;box-shadow:0 1px 2px rgba(0,0,0,.2)}
+.switch input:checked + .track{background:var(--accent-deep)}
+.switch input:checked + .track + .knob{transform:translateX(16px)}
+.switch input:focus-visible + .track{outline:2px solid var(--ink);outline-offset:2px}
+.range{appearance:none;height:3px;background:var(--line);border-radius:2px;width:96px;min-width:0}
+.range::-webkit-slider-thumb{appearance:none;width:12px;height:12px;border-radius:50%;background:var(--ink);cursor:pointer}
+.range::-moz-range-thumb{width:12px;height:12px;border:0;border-radius:50%;background:var(--ink);cursor:pointer}
+.sel{appearance:none;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:4px 24px 4px 8px;font-size:12px;min-height:28px;background-image:linear-gradient(45deg,transparent 50%,var(--mute) 50%),linear-gradient(135deg,var(--mute) 50%,transparent 50%);background-position:calc(100% - 13px) 12px,calc(100% - 9px) 12px;background-size:4px 4px;background-repeat:no-repeat}
+
+/* 队列 */
+.queue{margin-top:14px;display:flex;flex-direction:column;gap:1px;border:1px solid var(--line);border-radius:var(--r);overflow:hidden;background:var(--surface)}
+.queue:empty{display:none}
+.job{display:grid;grid-template-columns:1fr auto;gap:4px 12px;padding:9px 12px;background:var(--surface);border-bottom:1px solid var(--line-soft)}
+.job:last-child{border-bottom:0}
+.job-name{font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;display:flex;align-items:center;gap:7px}
+.job-name b{font-weight:500}
+.job-size{font-family:var(--mono);font-size:11px;color:var(--mute)}
+.job-state{font-family:var(--mono);font-size:11px;color:var(--mute);text-align:right;white-space:nowrap}
+.job-state.ok{color:var(--ok)}
+.job-state.err{color:var(--danger)}
+.job-bar-wrap{grid-column:1/-1;display:flex;align-items:center;gap:10px}
+.job-bar{flex:1;height:3px;background:var(--line-soft);border-radius:2px;overflow:hidden}
+.job-bar i{display:block;height:100%;width:0;background:var(--ink);transition:width .2s linear}
+.job-bar i.done{background:var(--ok)}
+.job-bar i.err{background:var(--danger)}
+.job-retry{border:0;background:none;color:var(--danger);font-size:11px;font-family:var(--mono);padding:0 2px;text-decoration:underline;text-underline-offset:2px}
+
+/* ---------- 图库工具条 ---------- */
+.toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:14px}
+.search{position:relative;flex:1 1 200px;min-width:0}
+.search svg{position:absolute;left:10px;top:50%;transform:translateY(-50%);width:14px;height:14px;stroke:var(--faint);stroke-width:1.8;fill:none}
+.search input{
+  width:100%;border:1px solid var(--line);background:var(--surface);border-radius:var(--r);
+  padding:8px 10px 8px 31px;font-size:13px;min-height:36px;
+}
+.search input:focus{outline:none;border-color:var(--ink);background:#fff}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:var(--r);overflow:hidden;background:var(--surface)}
+.seg button{appearance:none;border:0;background:transparent;padding:6px 10px;display:flex;align-items:center;min-height:34px;color:var(--mute)}
+.seg button svg{width:14px;height:14px;stroke:currentColor;stroke-width:1.8;fill:none}
+.seg button.on{background:var(--ink);color:#fff}
+.seg button:focus-visible{outline:2px solid var(--ink);outline-offset:-2px}
+
+/* 选中操作条 */
+.bulkbar{display:none;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;padding:8px 12px;background:var(--ink);color:#F1F2EC;border-radius:var(--r)}
+.bulkbar.on{display:flex}
+.bulkbar .count{font-family:var(--mono);font-size:11.5px;color:var(--accent)}
+.bulkbar .spacer{flex:1}
+.bulkbar .btn{background:transparent;border-color:rgba(255,255,255,.24);color:#F1F2EC;min-height:28px;padding:3px 10px;font-size:11.5px}
+.bulkbar .btn:hover{background:rgba(255,255,255,.12)}
+.bulkbar .btn-danger{color:#F3B9AE;border-color:rgba(243,185,174,.3)}
+
+/* ---------- 网格视图 ---------- */
+.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+@media (min-width:620px){.grid{grid-template-columns:repeat(3,1fr);gap:12px}}
+@media (min-width:900px){.grid{grid-template-columns:repeat(4,1fr);gap:14px}}
+@media (min-width:1200px){.grid{grid-template-columns:repeat(5,1fr)}}
+.tile{
+  border:1px solid var(--line);background:var(--surface);border-radius:var(--r);
+  overflow:hidden;position:relative;
+  transition:border-color .12s,box-shadow .12s;
+}
+.tile:hover{border-color:#A9AAA1}
+.tile.sel{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
+.tile-thumb{
+  aspect-ratio:4/3;display:block;width:100%;border:0;padding:0;background:
+    repeating-conic-gradient(#E9EAE4 0 25%,#F6F6F1 0 50%) 0 0/16px 16px;
+  cursor:zoom-in;overflow:hidden;
+}
+.tile-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.tile-check{
+  position:absolute;top:6px;left:6px;width:22px;height:22px;
+  background:rgba(250,250,247,.92);border:1px solid #B9BAB1;border-radius:3px;
+  display:grid;place-items:center;opacity:0;transition:opacity .12s;
+}
+.tile-check svg{width:12px;height:12px;stroke:var(--ink);stroke-width:2.4;fill:none;opacity:0}
+.tile:hover .tile-check,.tile.sel .tile-check{opacity:1}
+.tile.sel .tile-check{background:var(--accent);border-color:var(--accent-deep)}
+.tile.sel .tile-check svg{opacity:1}
+.tile-body{padding:8px 9px 9px}
+.tile-name{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--ink)}
+.tile-meta{display:flex;justify-content:space-between;gap:6px;font-family:var(--mono);font-size:10.5px;color:var(--mute);margin-top:2px}
+.tile-acts{display:flex;gap:0;border-top:1px solid var(--line-soft);margin-top:8px;padding-top:6px}
+.tile-acts button{
+  appearance:none;border:0;background:none;flex:1;padding:3px 0;min-height:26px;
+  font-size:11px;color:var(--ink-soft);display:flex;align-items:center;justify-content:center;gap:4px;
+  border-right:1px solid var(--line-soft);
+}
+.tile-acts button:last-child{border-right:0}
+.tile-acts button svg{width:12px;height:12px;stroke:currentColor;stroke-width:1.8;fill:none}
+.tile-acts button:hover{background:var(--surface-2);color:var(--ink)}
+.tile-acts button.del:hover{color:var(--danger);background:#FBEDEA}
+
+/* ---------- 列表视图 ---------- */
+.rows{border:1px solid var(--line);border-radius:var(--r);overflow:hidden;background:var(--surface)}
+.rows:empty{display:none}
+.row{
+  display:grid;grid-template-columns:24px 44px 1fr auto;gap:10px;align-items:center;
+  padding:8px 10px;border-bottom:1px solid var(--line-soft);
+}
+.row:last-child{border-bottom:0}
+.row:hover{background:#fff}
+.row.sel{background:#FFFCEF}
+.row-check{width:20px;height:20px;border:1px solid #B9BAB1;border-radius:3px;background:var(--surface);display:grid;place-items:center}
+.row-check svg{width:11px;height:11px;stroke:var(--ink);stroke-width:2.4;fill:none;opacity:0}
+.row.sel .row-check{background:var(--accent);border-color:var(--accent-deep)}
+.row.sel .row-check svg{opacity:1}
+.row-thumb{width:44px;height:33px;border:1px solid var(--line-soft);background:repeating-conic-gradient(#E9EAE4 0 25%,#F6F6F1 0 50%) 0 0/10px 10px;overflow:hidden;padding:0;cursor:zoom-in}
+.row-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.row-main{min-width:0}
+.row-name{font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row-sub{font-family:var(--mono);font-size:10.5px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+.row-acts{display:flex;gap:2px}
+.row-acts button{appearance:none;border:0;background:none;width:30px;height:30px;display:grid;place-items:center;color:var(--ink-soft);border-radius:3px}
+.row-acts button svg{width:13px;height:13px;stroke:currentColor;stroke-width:1.8;fill:none}
+.row-acts button:hover{background:var(--surface-2);color:var(--ink)}
+.row-acts button.del:hover{background:#FBEDEA;color:var(--danger)}
+@media (max-width:520px){
+  .row{grid-template-columns:22px 38px 1fr;gap:8px}
+  .row-acts{grid-column:1/-1;justify-content:flex-end;margin-top:-2px}
+  .row-thumb{width:38px;height:29px}
+}
+
+/* ---------- 空态 ---------- */
+.empty{
+  border:1px dashed var(--line);border-radius:var(--r);
+  padding:34px 20px;text-align:center;background:var(--surface-2);
+}
+.empty svg{width:26px;height:26px;margin:0 auto 10px;stroke:var(--faint);stroke-width:1.5;fill:none}
+.empty h3{font-size:13.5px;font-weight:500}
+.empty p{font-size:12.5px;color:var(--mute);margin-top:4px}
+.empty .btn{margin-top:14px}
+
+/* ---------- 设置表单 ---------- */
+.form{display:grid;gap:18px;max-width:720px}
+.modes{display:flex;gap:0;border:1px solid var(--line);border-radius:var(--r);overflow:hidden;background:var(--surface)}
+.modes button{appearance:none;border:0;background:transparent;flex:1;padding:10px 12px;text-align:left;border-right:1px solid var(--line-soft)}
+.modes button:last-child{border-right:0}
+.modes button.on{background:var(--ink);color:#F2F3ED}
+.modes .m-t{font-size:12.5px;font-weight:500}
+.modes .m-d{font-size:11px;color:var(--mute);margin-top:2px;font-family:var(--mono)}
+.modes button.on .m-d{color:rgba(242,243,237,.66)}
+.field{display:grid;gap:6px}
+.field label{font-size:12px;font-weight:500;color:var(--ink-soft)}
+.field .hint{font-size:11.5px;color:var(--mute);font-family:var(--mono);line-height:1.5}
+.input{
+  width:100%;border:1px solid var(--line);background:var(--surface);border-radius:var(--r);
+  padding:9px 11px;font-size:13px;min-height:38px;
+}
+.input:focus{outline:none;border-color:var(--ink);background:#fff;box-shadow:0 0 0 3px rgba(239,197,63,.3)}
+.input.mono{font-family:var(--mono);font-size:12.5px}
+.form-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding-top:4px}
+.test-out{font-family:var(--mono);font-size:11.5px;color:var(--mute);margin-left:4px}
+.test-out.ok{color:var(--ok)}
+.test-out.err{color:var(--danger)}
+
+/* ---------- 部署 ---------- */
+.steps{display:grid;gap:0;counter-reset:s;border-top:1px solid var(--line)}
+.step{display:grid;grid-template-columns:26px 1fr;gap:12px;padding:13px 0;border-bottom:1px solid var(--line-soft);counter-increment:s}
+.step::before{
+  content:counter(s);font-family:var(--mono);font-size:11px;color:var(--ink);
+  width:22px;height:22px;border:1px solid var(--ink);border-radius:50%;
+  display:grid;place-items:center;margin-top:1px;
+}
+.step h3{font-size:13px;font-weight:500;margin:0}
+.step p{font-size:12.5px;color:var(--mute);margin-top:3px;line-height:1.6}
+.step code{font-family:var(--mono);font-size:11.5px;background:var(--surface-2);border:1px solid var(--line-soft);padding:1px 4px;border-radius:2px;color:var(--ink-soft)}
+.codebar{display:flex;align-items:center;gap:8px;justify-content:space-between;margin:22px 0 0;padding:8px 10px;background:var(--ink);color:#EDEEE8;border-radius:var(--r) var(--r) 0 0}
+.codebar .fname{font-family:var(--mono);font-size:11.5px;color:var(--accent);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.codebar .acts{display:flex;gap:6px;flex:0 0 auto}
+.codebar .btn{background:transparent;border-color:rgba(255,255,255,.22);color:#EDEEE8;min-height:26px;padding:3px 9px;font-size:11px}
+.codebar .btn:hover{background:rgba(255,255,255,.13)}
+pre.code{
+  margin:0;border:1px solid #101215;border-top:0;border-radius:0 0 var(--r) var(--r);
+  background:#101215;color:#D8DBD3;
+  padding:14px;overflow:auto;max-height:460px;
+  font-family:var(--mono);font-size:11.5px;line-height:1.7;
+  tab-size:2;
+}
+pre.code::-webkit-scrollbar{width:9px;height:9px}
+pre.code::-webkit-scrollbar-thumb{background:#3A3E44;border-radius:9px}
+.note{border-left:2px solid var(--accent);background:#FFFBEB;padding:10px 12px;margin-top:16px;font-size:12.5px;color:var(--ink-soft);border-radius:0 var(--r) var(--r) 0}
+.note b{font-weight:700}
+
+/* ---------- 灯箱 ---------- */
+.lightbox{
+  position:fixed;inset:0;z-index:60;display:none;
+  background:rgba(16,18,21,.82);
+  padding:20px;overflow:auto;
+}
+.lightbox.on{display:grid;place-items:center}
+.lb-panel{max-width:min(92vw,900px);width:100%;background:var(--surface);border-radius:var(--r);overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.45)}
+.lb-img{background:repeating-conic-gradient(#E9EAE4 0 25%,#F6F6F1 0 50%) 0 0/18px 18px;display:grid;place-items:center;max-height:62vh;overflow:hidden;padding:0}
+.lb-img img{max-width:100%;max-height:62vh;object-fit:contain;display:block}
+.lb-body{padding:12px 14px 14px;border-top:1px solid var(--line)}
+.lb-name{font-size:13px;font-weight:500;word-break:break-all}
+.lb-meta{font-family:var(--mono);font-size:10.5px;color:var(--mute);margin-top:3px}
+.lb-link{display:flex;gap:6px;margin-top:10px}
+.lb-link input{flex:1;min-width:0;font-family:var(--mono);font-size:11.5px;border:1px solid var(--line);background:var(--surface-2);padding:7px 9px;border-radius:var(--r);min-height:34px}
+.lb-link input:focus{outline:none;border-color:var(--ink);background:#fff}
+.lb-close{position:absolute;top:14px;right:14px;width:36px;height:36px;border-radius:50%;border:1px solid rgba(255,255,255,.3);background:rgba(20,23,27,.6);color:#fff;display:grid;place-items:center;z-index:2}
+.lb-close svg{width:16px;height:16px;stroke:currentColor;stroke-width:2;fill:none}
+
+/* ---------- 确认弹层 ---------- */
+.confirm{position:fixed;inset:0;z-index:70;display:none;background:rgba(16,18,21,.55);place-items:center;padding:20px}
+.confirm.on{display:grid}
+.confirm-box{background:var(--surface);border-radius:var(--r);padding:18px;max-width:360px;width:100%;border-top:3px solid var(--danger)}
+.confirm-box h3{font-size:14px}
+.confirm-box p{font-size:12.5px;color:var(--mute);margin-top:6px}
+.confirm-acts{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
+
+/* ---------- Toast ---------- */
+.toast{
+  position:fixed;left:50%;bottom:26px;transform:translate(-50%,12px);
+  background:var(--ink);color:#F2F3ED;border-radius:var(--r);
+  padding:9px 14px;font-size:12.5px;z-index:80;
+  display:flex;align-items:center;gap:8px;
+  opacity:0;pointer-events:none;transition:opacity .18s,transform .18s;
+  max-width:calc(100vw - 32px);
+  box-shadow:0 8px 24px rgba(0,0,0,.25);
+}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+.toast .bar{width:3px;height:14px;background:var(--accent);border-radius:2px;flex:0 0 auto}
+.toast.err .bar{background:#E4795F}
+
+/* ---------- 桌面端导轨竖排 ---------- */
+@media (min-width:860px){
+  .app{grid-template-columns:172px 1fr;grid-template-rows:1fr}
+  .rail{flex-direction:column;align-items:stretch;padding:14px 0 18px;border-bottom:0;border-right:1px solid #000;overflow:visible}
+  .brand{padding:4px 16px 14px;margin:0 0 8px;border-right:0;border-bottom:1px solid var(--rail-soft)}
+  .brand-name{font-size:14px}
+  .tabs{flex-direction:column;gap:2px;padding:0}
+  .tab{padding:9px 16px;border-radius:0;font-size:13px;gap:9px}
+  .tab svg{width:16px;height:16px}
+  .tab.on{background:rgba(239,197,63,.07)}
+  .tab.on::after{left:0;right:auto;top:8px;bottom:8px;width:2px;height:auto}
+  .rail-foot{display:block;margin-top:auto;padding:12px 16px 0;font-family:var(--mono);font-size:10px;color:#5D636B;line-height:1.6;border-top:1px solid var(--rail-soft)}
+  .main{padding:26px 28px 70px}
+}
+@media (min-width:1100px){
+  .main{padding:30px 40px 80px}
+  .head h1{font-size:30px}
+}
+@media (min-width:600px){
+  .cap{width:210px}
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- 左侧导轨 -->
+  <aside class="rail">
+    <div class="brand">
+      <svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M3 8l9-5 9 5-9 5-9-5z" fill="#EFC53F"/>
+        <path d="M3 12.5l9 5 9-5" stroke="#EFC53F" stroke-width="1.6" fill="none" opacity=".5"/>
+        <path d="M3 17l9 5 9-5" stroke="#EFC53F" stroke-width="1.6" fill="none" opacity=".26"/>
+      </svg>
+      <span class="brand-name">图床</span>
+    </div>
+    <nav class="tabs" aria-label="主导航">
+      <button class="tab on" data-view="upload" type="button">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V4m0 0l-4 4m4-4l4 4"/><path d="M4 15v3.5A1.5 1.5 0 005.5 20h9a1.5 1.5 0 001.5-1.5V15"/></svg>
+        <span>入库</span>
+      </button>
+      <button class="tab" data-view="library" type="button">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="3.5" width="7" height="7" rx="1"/><rect x="13.5" y="3.5" width="7" height="7" rx="1"/><rect x="3.5" y="13.5" width="7" height="7" rx="1"/><rect x="13.5" y="13.5" width="7" height="7" rx="1"/></svg>
+        <span>图库</span>
+      </button>
+      <button class="tab" data-view="settings" type="button">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 12h4M12 12h8M4 17h8M16 17h4"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="14" cy="17" r="2"/></svg>
+        <span>设置</span>
+      </button>
+      <button class="tab" data-view="deploy" type="button">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="1.5"/><path d="M3 9h18M7.5 13l2.5 2-2.5 2M12 17h4"/></svg>
+        <span>部署</span>
+      </button>
+    </nav>
+    <div class="rail-foot">GitHub · jsDelivr<br>单文件控制台</div>
+  </aside>
+
+  <main class="main">
+    <div class="wrap">
+
+      <!-- 顶栏 -->
+      <header class="topbar">
+        <div class="head">
+          <h1>图床控制台</h1>
+          <p class="sub">图片存进 GitHub 仓库，用 jsDelivr 出链。没配仓库时走本地演示，数据只留在本机浏览器。</p>
+        </div>
+        <div class="statuses">
+          <span class="chip local" id="modeChip"><span class="dot"></span><span id="modeText">本地演示</span></span>
+          <div class="cap">
+            <div class="cap-head"><span id="capCap">本机容量</span><span id="capValue">—</span></div>
+            <div class="cap-track"><div class="cap-fill" id="capFill"></div></div>
+            <div class="cap-note" id="capNote">尚未入库</div>
+          </div>
+        </div>
+      </header>
+
+      <!-- ===== 视图：入库 ===== -->
+      <section class="view on" id="view-upload" aria-label="入库">
+        <div class="dz" id="dropzone" role="button" tabindex="0" aria-label="选择或拖入图片">
+          <b class="corner-b"></b><b class="corner-d"></b>
+          <svg class="dz-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4m0 0l-5 5m5-5l5 5"/><path d="M3 15v3.5A1.5 1.5 0 004.5 20h15a1.5 1.5 0 001.5-1.5V15"/></svg>
+          <div class="dz-title">把图片拖进来，或粘贴截图</div>
+          <div class="dz-hint">JPG · PNG · WebP · GIF · AVIF · SVG ｜ 单张上限 25 MB</div>
+          <div class="dz-key">点这里选文件 <kbd>Ctrl</kbd>+<kbd>V</kbd> 直接粘贴</div>
+        </div>
+        <input type="file" id="fileInput" accept="image/*" multiple hidden>
+
+        <div class="opts">
+          <div class="opt">
+            <label class="switch">
+              <input type="checkbox" id="optCompress">
+              <span class="track"></span><span class="knob"></span>
+            </label>
+            <span>上传前压缩</span>
+          </div>
+          <div class="opt" id="qualityWrap">
+            <span class="opt-label">质量</span>
+            <input type="range" class="range" id="optQuality" min="40" max="95" step="1" aria-label="压缩质量">
+            <span class="opt-label" id="qualityVal">82</span>
+          </div>
+          <div class="opt" id="edgeWrap">
+            <span class="opt-label">最长边</span>
+            <select class="sel" id="optEdge" aria-label="最长边">
+              <option value="1280">1280</option>
+              <option value="1920">1920</option>
+              <option value="2560">2560</option>
+              <option value="0">不缩放</option>
+            </select>
+          </div>
+          <div class="opt" style="margin-left:auto">
+            <span class="opt-label" id="destLabel">存入本机演示库</span>
+          </div>
+        </div>
+
+        <div class="queue" id="queue" aria-live="polite"></div>
+
+        <div class="sec">
+          <div class="sec-head">
+            <span class="sec-title">最近入库</span>
+            <span class="sec-note" id="recentNote">0 张</span>
+          </div>
+          <div class="grid" id="recentGrid"></div>
+          <div class="empty" id="recentEmpty">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="1.5"/><circle cx="9" cy="10" r="1.6"/><path d="M4 17l5-4.5 4 3 3-2.5 4 4"/></svg>
+            <h3>还没有图片</h3>
+            <p>第一批上传完成后会出现在这里。</p>
+            <button class="btn btn-primary btn-sm" type="button" id="emptyPick">选图片</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== 视图：图库 ===== -->
+      <section class="view" id="view-library" aria-label="图库">
+        <div class="toolbar">
+          <div class="search">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4 4"/></svg>
+            <input type="search" id="searchInput" placeholder="按文件名或存储键搜索" aria-label="搜索图片">
+          </div>
+          <select class="sel" id="sortSel" aria-label="排序">
+            <option value="new">最新在前</option>
+            <option value="old">最早在前</option>
+            <option value="big">体积从大到小</option>
+            <option value="name">文件名 A→Z</option>
+          </select>
+          <div class="seg" role="group" aria-label="视图切换">
+            <button type="button" class="on" data-layout="grid" aria-pressed="true" title="网格">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="3.5" width="7" height="7" rx="1"/><rect x="13.5" y="3.5" width="7" height="7" rx="1"/><rect x="3.5" y="13.5" width="7" height="7" rx="1"/><rect x="13.5" y="13.5" width="7" height="7" rx="1"/></svg>
+            </button>
+            <button type="button" data-layout="list" aria-pressed="false" title="列表">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+            </button>
+          </div>
+          <button class="btn btn-sm" type="button" id="refreshBtn">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 10-3 6.2"/><path d="M20 5.5V11h-5"/></svg>
+            刷新
+          </button>
+        </div>
+
+        <div class="bulkbar" id="bulkbar">
+          <span class="count" id="bulkCount">已选 0 张</span>
+          <div class="spacer"></div>
+          <button class="btn" type="button" data-bulk="copy">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="1.5"/><path d="M15 6.5V5.5A1.5 1.5 0 0013.5 4h-9A1.5 1.5 0 003 5.5v9A1.5 1.5 0 004.5 15.5h1"/></svg>
+            复制链接
+          </button>
+          <button class="btn" type="button" data-bulk="clear">取消选择</button>
+          <button class="btn btn-danger" type="button" data-bulk="delete">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13"/></svg>
+            删除
+          </button>
+        </div>
+
+        <div class="grid" id="grid"></div>
+        <div class="rows" id="rows"></div>
+        <div class="empty" id="libEmpty" hidden>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="1.5"/><circle cx="9" cy="10" r="1.6"/><path d="M4 17l5-4.5 4 3 3-2.5 4 4"/></svg>
+          <h3 id="libEmptyTitle">图库里还没有东西</h3>
+          <p id="libEmptyDesc">去「入库」上传第一批图片，或者换个搜索词。</p>
+          <button class="btn btn-primary btn-sm" type="button" id="libEmptyBtn">去上传</button>
+        </div>
+      </section>
+
+      <!-- ===== 视图：设置 ===== -->
+      <section class="view" id="view-settings" aria-label="设置">
+        <form class="form" id="settingsForm" autocomplete="off">
+          <div class="field">
+            <label>存储位置</label>
+            <div class="modes" id="modeSwitch">
+              <button type="button" data-mode="local" class="on">
+                <div class="m-t">本地演示</div>
+                <div class="m-d">IndexedDB · 只在这台机器</div>
+              </button>
+              <button type="button" data-mode="github">
+                <div class="m-t">GitHub 仓库</div>
+                <div class="m-d">Contents API + jsDelivr</div>
+              </button>
+            </div>
+            <div class="hint">本地模式用来试界面和流程，复制出来的链接只在这台浏览器里能打开。填好仓库和令牌、测试通过后再切到 GitHub。</div>
+          </div>
+
+          <div class="field">
+            <label for="ghRepo">图片仓库</label>
+            <input class="input mono" id="ghRepo" placeholder="yourname/images">
+            <div class="hint">写 owner/repo，例如 yourname/images。公开仓库图片谁都能看，私有仓库只有带令牌的请求能读到。</div>
+          </div>
+
+          <div class="field">
+            <label for="ghBranch">分支</label>
+            <input class="input mono" id="ghBranch" placeholder="main">
+            <div class="hint">往哪个分支写图，一般填 main。jsDelivr 的外链会带上这个分支名。</div>
+          </div>
+
+          <div class="field">
+            <label for="ghDir">存放目录</label>
+            <input class="input mono" id="ghDir" placeholder="img">
+            <div class="hint">新文件写到 img/2026/11/8f3a1c.webp 这类路径，按年月分开，列表只扫这个目录。</div>
+          </div>
+
+          <div class="field">
+            <label for="ghToken">访问令牌</label>
+            <input class="input mono" id="ghToken" type="password" placeholder="github_pat_…">
+            <div class="hint">Fine-grained 令牌，只勾这个仓库的 Contents: Read and write。存在本机 localStorage，不往别处发。</div>
+          </div>
+
+          <div class="field">
+            <label for="cdnSel">外链走哪个域名</label>
+            <select class="sel" id="cdnSel">
+              <option value="jsdelivr">jsDelivr CDN · 国内一般能直连</option>
+              <option value="raw">raw.githubusercontent.com · 国内可能不稳</option>
+            </select>
+            <div class="hint">两者指向同一份文件。jsDelivr 有缓存，换图后可能需要缓存刷新；raw 每次直连 GitHub。</div>
+          </div>
+
+          <div class="field">
+            <label for="fmtSel">默认复制格式</label>
+            <select class="sel" id="fmtSel">
+              <option value="url">直链  https://…</option>
+              <option value="md">Markdown  ![名称](链接)</option>
+              <option value="html">HTML  img 标签</option>
+              <option value="bbcode">BBCode  [img]…[/img]</option>
+            </select>
+          </div>
+
+          <div class="form-actions">
+            <button class="btn btn-primary" type="submit">保存设置</button>
+            <button class="btn" type="button" id="testBtn">测试仓库</button>
+            <span class="test-out" id="testOut"></span>
+          </div>
+
+          <div class="form-actions" style="border-top:1px solid var(--line);padding-top:16px;margin-top:4px">
+            <button class="btn btn-danger btn-sm" type="button" id="clearLocalBtn">清空本地演示数据</button>
+            <span class="test-out" id="localStat"></span>
+          </div>
+        </form>
+      </section>
+
+      <!-- ===== 视图：部署 ===== -->
+      <section class="view" id="view-deploy" aria-label="部署">
+        <p style="font-size:13px;color:var(--mute);max-width:64ch">不需要服务器，也不需要 Worker。浏览器直接用 GitHub 的 Contents API 把图片提交进仓库，再用 jsDelivr 或 raw 链接把图片发出去。</p>
+
+        <div class="steps">
+          <div class="step">
+            <div>
+              <h3>建一个公开仓库</h3>
+              <p>New repository，勾上 <code>Public</code>，并且勾选 <code>Add a README file</code> 让它产生第一次提交——空仓库没有 main 分支，第一次写入会失败。仓库名例如 <code>images</code>。</p>
+            </div>
+          </div>
+          <div class="step">
+            <div>
+              <h3>建一个只写这个仓库的令牌</h3>
+              <p>Settings → Developer settings → Personal access tokens → <code>Fine-grained tokens</code> → Generate new token。Repository access 选 Only select repositories 指向刚建的仓库，Permissions 里把 <code>Contents</code> 设为 <code>Read and write</code>，其余留空。</p>
+            </div>
+          </div>
+          <div class="step">
+            <div>
+              <h3>填进设置页</h3>
+              <p>仓库填 <code>owner/repo</code>，分支 <code>main</code>，目录 <code>img</code>，粘上以 <code>github_pat_</code> 开头的令牌。点「测试仓库」，看到「已连接」再切到 GitHub 模式。</p>
+            </div>
+          </div>
+          <div class="step">
+            <div>
+              <h3>开始用</h3>
+              <p>入库页拖图或粘贴截图，上传完直接复制直链。形如 <code>https://cdn.jsdelivr.net/gh/owner/repo@main/img/2026/11/8f3a1c.webp</code>，贴到哪里都能显示。</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="note">
+          <b>页面和图片可以放同一个仓库。</b>把这份 <code>index.html</code> 提交到仓库根目录，图片目录仍填 <code>img</code>，图库只会扫这个目录，不会把页面自己列进去。想给控制台一个固定网址，就在仓库 Settings → Pages 里选 Deploy from a branch、分支 main、目录 /root，之后用 <code>https://owner.github.io/repo/</code> 打开——这个地址是 https，剪贴板和粘贴上传都比本地文件更顺。
+        </div>
+
+        <div class="note">
+          <b>仓库必须是公开的。</b>jsDelivr 只读公开仓库；私有仓库的 raw 链接要带上令牌才能访问，发出去别人打不开。图片里有隐私内容，就别用这套方案。
+        </div>
+
+        <div class="note">
+          <b>几个会碰到的限制</b>：走 Contents API 单文件建议控制在 10 MB 以内（本页上限 25 MB，大文件要先转 Base64，慢且容易超时）；GitHub 建议仓库体积不超过 1 GB；带令牌的请求每小时 5000 次，正常上传根本用不完。
+        </div>
+
+        <div class="note">
+          <b>jsDelivr 的缓存</b>：同一链接会被 CDN 缓存，覆盖写同名文件后旧图可能还挂着。这套方案每次都用随机文件名，不覆盖写，所以不会碰到这个问题；真要强制刷新，可以在链接后加 <code>?v=时间戳</code>。
+        </div>
+      </section>
+
+    </div>
+  </main>
+</div>
+
+<!-- 灯箱 -->
+<div class="lightbox" id="lightbox" aria-hidden="true">
+  <button class="lb-close" id="lbClose" type="button" aria-label="关闭">
+    <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6l-12 12"/></svg>
+  </button>
+  <div class="lb-panel">
+    <div class="lb-img"><img id="lbImg" alt=""></div>
+    <div class="lb-body">
+      <div class="lb-name" id="lbName"></div>
+      <div class="lb-meta" id="lbMeta"></div>
+      <div class="lb-link">
+        <input id="lbLink" readonly aria-label="图片直链">
+        <button class="btn btn-sm" id="lbCopy" type="button">复制</button>
+        <a class="btn btn-sm" id="lbOpen" target="_blank" rel="noopener">打开</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 确认弹层 -->
+<div class="confirm" id="confirm">
+  <div class="confirm-box">
+    <h3 id="cfTitle">删除图片</h3>
+    <p id="cfText">删除后不可恢复。</p>
+    <div class="confirm-acts">
+      <button class="btn btn-sm" type="button" id="cfCancel">取消</button>
+      <button class="btn btn-sm btn-danger" type="button" id="cfOk">删除</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"><span class="bar"></span><span id="toastText"></span></div>
+
+
+
+<!-- ===== 控制台脚本 ===== -->
+<script>
+(function () {
+  'use strict';
+
+  /* ================= 常量 ================= */
+  const LS_KEY = 'cf-imgbed:settings:v1';
+  const DB_NAME = 'cf-imgbed';
+  const STORE = 'objects';
+  const REPO_SOFT_LIMIT = 1024 * 1024 * 1024; // GitHub 建议单个仓库不超过 1 GB
+  const MAX_BYTES = 25 * 1024 * 1024;
+  const CONCURRENCY = 3;
+
+  const DEFAULTS = {
+    mode: 'local',
+    repo: 'xgnw/img',
+    branch: 'master',
+    dir: 'img',
+    token: '',
+    cdn: 'jsdelivr',
+    linkFormat: 'url',
+    compress: true,
+    quality: 82,
+    maxEdge: 1920,
+    layout: 'grid',
+    sort: 'new'
+  };
+
+  const ICON = {
+    copy: '<svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="1.5"/><path d="M15 5.5H9.5A1.5 1.5 0 0 0 8 7v9"/><path d="M5 8v10.5A1.5 1.5 0 0 0 6.5 20H15"/></svg>',
+    open: '<svg viewBox="0 0 24 24"><path d="M14 4h6v6"/><path d="M20 4l-7.5 7.5"/><path d="M18 14v5.5A1.5 1.5 0 0 1 16.5 21h-11A1.5 1.5 0 0 1 4 19.5v-11A1.5 1.5 0 0 1 5.5 7H11"/></svg>',
+    trash: '<svg viewBox="0 0 24 24"><path d="M4 7h16"/><path d="M9 7V5h6v2"/><path d="M6.5 7l1 13h9l1-13"/></svg>',
+    check: '<svg viewBox="0 0 24 24"><path d="M4 12l5 5L20 6"/></svg>'
+  };
+
+  const $ = function (id) { return document.getElementById(id); };
+
+  /* ================= 配置 ================= */
+  let cfg = loadCfg();
+
+  function loadCfg() {
+    let saved = {};
+    try { saved = JSON.parse(localStorage.getItem(LS_KEY) || '{}') || {}; } catch (e) { saved = {}; }
+    return Object.assign({}, DEFAULTS, saved);
+  }
+  function saveCfg() {
+    try { localStorage.setItem(LS_KEY, JSON.stringify(cfg)); } catch (e) { /* 隐私模式下写不进去，忽略 */ }
+  }
+  function repoPath() {
+    return (cfg.repo || '').trim().replace(/^\/+/, '').replace(/\/+$/, '');
+  }
+  function repoApi() {
+    return 'https://api.github.com/repos/' + repoPath();
+  }
+  function isGitHub() {
+    return cfg.mode === 'github' && /^[^\s/]+\/[^\s/]+$/.test(repoPath()) && !!(cfg.token || '').trim();
+  }
+
+  /* ================= 状态 ================= */
+  const state = {
+    items: [],
+    queue: [],
+    selected: new Set(),
+    search: ''
+  };
+  let objectUrls = [];
+  let pendingDelete = [];
+  let currentLb = null;
+  let running = 0;
+
+  /* ================= 小工具 ================= */
+  function pad(n) { return n < 10 ? '0' + n : '' + n; }
+
+  function esc(v) {
+    return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  function fmtSize(n) {
+    if (n == null || isNaN(n)) return '—';
+    if (n < 1024) return n + ' B';
+    if (n < 1024 * 1024) return (n / 1024).toFixed(n < 10240 ? 1 : 0) + ' KB';
+    if (n < 1024 * 1024 * 1024) return (n / 1048576).toFixed(n < 10 * 1048576 ? 1 : 0) + ' MB';
+    return (n / 1073741824).toFixed(1) + ' GB';
+  }
+
+  function fmtDate(ts) {
+    if (!ts) return '—';
+    const d = new Date(ts);
+    return pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+  }
+
+  function uid() {
+    return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  }
+
+  function guessType(key) {
+    const ext = (key.match(/\.([a-z0-9]+)$/) || ['', ''])[1].toLowerCase();
+    const map = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', gif: 'image/gif', avif: 'image/avif', svg: 'image/svg+xml', bmp: 'image/bmp' };
+    return map[ext] || 'image/*';
+  }
+
+  // 文件名里带了 base36 时间戳（时间戳-随机串.ext），列表接口不返回时间，
+  // 就从文件名还原；老文件退回按 yyyy/mm 目录推算。
+  function uploadedFrom(key) {
+    const base = String(key).split('/').pop().replace(/\.[^.]+$/, '');
+    const stamp = base.split('-')[0];
+    const ms = parseInt(stamp, 36);
+    if (ms > 1300000000000 && ms < 3000000000000) return ms;
+    const m = String(key).match(/\/(\d{4})\/(\d{2})\//);
+    if (m) return new Date(Number(m[1]), Number(m[2]) - 1, 1).getTime();
+    return 0;
+  }
+
+  let toastTimer = 0;
+  function toast(msg, isErr) {
+    $('toastText').textContent = msg;
+    const box = $('toast');
+    box.classList.toggle('err', !!isErr);
+    box.classList.add('on');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { box.classList.remove('on'); }, 2800);
+  }
+
+  /* ================= 视图切换 ================= */
+  const VIEWS = ['upload', 'library', 'settings', 'deploy'];
+
+  function showView(name) {
+    VIEWS.forEach(function (v) {
+      const el = $('view-' + v);
+      if (el) el.classList.toggle('on', v === name);
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('.tab'), function (t) {
+      t.classList.toggle('on', t.dataset.view === name);
+    });
+    if (name === 'library') renderLibrary();
+    if (name === 'settings') fillSettings();
+  }
+
+  Array.prototype.forEach.call(document.querySelectorAll('.tab'), function (t) {
+    t.addEventListener('click', function () { showView(t.dataset.view); });
+  });
+
+  /* ================= 本地存储（IndexedDB） ================= */
+  let dbPromise = null;
+
+  function openDB() {
+    if (dbPromise) return dbPromise;
+    dbPromise = new Promise(function (resolve, reject) {
+      if (!window.indexedDB) { reject(new Error('这个浏览器不支持 IndexedDB')); return; }
+      const req = indexedDB.open(DB_NAME, 1);
+      req.onupgradeneeded = function () {
+        const db = req.result;
+        if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE, { keyPath: 'key' });
+      };
+      req.onsuccess = function () { resolve(req.result); };
+      req.onerror = function () { reject(req.error || new Error('打不开本地数据库')); };
+    });
+    return dbPromise;
+  }
+
+  function idb(mode, fn) {
+    return openDB().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        const tx = db.transaction(STORE, mode);
+        const store = tx.objectStore(STORE);
+        const req = fn(store);
+        tx.oncomplete = function () { resolve(req ? req.result : undefined); };
+        tx.onerror = function () { reject(tx.error); };
+        tx.onabort = function () { reject(tx.error); };
+        if (req) req.onerror = function () { reject(req.error); };
+      });
+    });
+  }
+
+  function releaseUrls() {
+    objectUrls.forEach(function (u) {
+      try { URL.revokeObjectURL(u); } catch (e) {}
+    });
+    objectUrls = [];
+  }
+
+  /* ================= GitHub 接口 ================= */
+  function encodePath(key) {
+    return String(key).split('/').map(encodeURIComponent).join('/');
+  }
+
+  function urlFor(key) {
+    const repo = repoPath();
+    const branch = cfg.branch || 'main';
+    const p = encodePath(key);
+    if (cfg.cdn === 'raw') {
+      return 'https://raw.githubusercontent.com/' + repo + '/' + branch + '/' + p;
+    }
+    return 'https://cdn.jsdelivr.net/gh/' + repo + '@' + branch + '/' + p;
+  }
+
+  function ghStatusError(status, data) {
+    const msg = (data && data.message) || '';
+    if (status === 401) return '令牌无效或已过期（401）';
+    if (status === 403) return '权限不足，或撞上每小时 5000 次的限流（403）';
+    if (status === 404) return '仓库、分支或路径不存在（404），检查 owner/repo 与令牌授权范围';
+    if (status === 409) return '仓库是空的（409），先建一个 README 产生首次提交';
+    if (status === 422) return '请求被拒绝（422）' + (msg ? '：' + msg : '，多半是同名文件已存在');
+    return 'HTTP ' + status + (msg ? '：' + msg : '');
+  }
+
+  function ghFetch(path, options) {
+    const opt = Object.assign({ method: 'GET' }, options || {});
+    opt.headers = Object.assign({
+      Authorization: 'Bearer ' + (cfg.token || '').trim(),
+      Accept: 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28'
+    }, opt.headers || {});
+
+    return fetch('https://api.github.com' + path, opt).then(function (res) {
+      return res.text().then(function (text) {
+        let data = null;
+        try { data = JSON.parse(text); } catch (e) { data = null; }
+        if (!res.ok) throw new Error(ghStatusError(res.status, data));
+        if (!data) throw new Error('接口返回的内容解析不了（HTTP ' + res.status + '）');
+        return data;
+      });
+    });
+  }
+
+  // 测试连接时用输入框里的令牌，不依赖已保存的配置
+  function ghProbe(path, token) {
+    return fetch('https://api.github.com' + path, {
+      headers: {
+        Authorization: 'Bearer ' + token,
+        Accept: 'application/vnd.github+json',
+        'X-GitHub-Api-Version': '2022-11-28'
+      }
+    }).then(function (res) {
+      return res.text().then(function (text) {
+        let data = null;
+        try { data = JSON.parse(text); } catch (e) { data = null; }
+        if (!res.ok) throw new Error(ghStatusError(res.status, data));
+        return data;
+      });
+    });
+  }
+
+  /* ================= 读取列表 ================= */
+  function loadItems() {
+    releaseUrls();
+    state.items = [];
+
+    const done = function () {
+      renderAll();
+      updateCapacity();
+    };
+
+    if (isGitHub()) {
+      const branch = encodeURIComponent(cfg.branch || 'main');
+      const dir = (cfg.dir || '').replace(/^\/+/, '').replace(/\/+$/, '');
+
+      return ghFetch('/repos/' + repoPath() + '/git/trees/' + branch + '?recursive=1')
+        .then(function (data) {
+          state.items = (data.tree || []).filter(function (t) {
+            if (t.type !== 'blob') return false;
+            if (!/\.(jpe?g|png|gif|webp|avif|bmp|svg)$/i.test(t.path)) return false;
+            return !dir || t.path === dir || t.path.indexOf(dir + '/') === 0;
+          }).map(function (t) {
+            return {
+              key: t.path,
+              url: urlFor(t.path),
+              name: t.path.split('/').pop(),
+              size: t.size,
+              type: guessType(t.path),
+              uploaded: uploadedFrom(t.path),
+              src: 'github',
+              sha: t.sha
+            };
+          }).sort(function (a, b) { return b.uploaded - a.uploaded; });
+          done();
+        })
+        .catch(function (err) {
+          toast('读取仓库失败：' + err.message, true);
+          done();
+        });
+    }
+
+    return idb('readonly', function (s) { return s.getAll(); })
+      .then(function (recs) {
+        state.items = (recs || []).map(function (rec) {
+          const url = URL.createObjectURL(rec.blob);
+          objectUrls.push(url);
+          return {
+            key: rec.key,
+            url: url,
+            name: rec.name || rec.key.split('/').pop(),
+            size: rec.size,
+            type: rec.type,
+            uploaded: rec.uploaded || 0,
+            src: 'local'
+          };
+        }).sort(function (a, b) { return b.uploaded - a.uploaded; });
+      })
+      .catch(function (err) {
+        toast('读取本地数据失败：' + err.message, true);
+      })
+      .then(done);
+  }
+
+  /* ================= 渲染 ================= */
+  function renderAll() {
+    updateStatus();
+    renderRecent();
+    renderLibrary();
+    updateCapacity();
+    updateLocalStat();
+  }
+
+  function updateStatus() {
+    const chip = $('modeChip');
+    const gh = isGitHub();
+    chip.classList.toggle('local', !gh && cfg.mode !== 'github');
+    chip.classList.toggle('remote', !!gh);
+    chip.classList.toggle('warn', cfg.mode === 'github' && !gh);
+    $('modeText').textContent = gh
+      ? 'GitHub 仓库'
+      : (cfg.mode === 'github' ? '仓库未配置' : '本地演示');
+    $('destLabel').textContent = gh ? '存入 GitHub 仓库' : '存入本机演示库';
+  }
+
+  function renderRecent() {
+    const box = $('recentGrid');
+    const items = state.items.slice(0, 6);
+    $('recentNote').textContent = state.items.length + ' 张';
+    if (!items.length) {
+      box.innerHTML = '';
+      box.style.display = 'none';
+      $('recentEmpty').hidden = false;
+      return;
+    }
+    box.style.display = '';
+    $('recentEmpty').hidden = true;
+    box.innerHTML = items.map(recentHtml).join('');
+  }
+
+  function recentHtml(it) {
+    return '<div class="tile" data-key="' + esc(it.key) + '">' +
+      '<button class="tile-thumb" type="button" data-act="preview" aria-label="预览">' +
+        '<img loading="lazy" src="' + esc(it.url) + '" alt="' + esc(it.name) + '">' +
+      '</button>' +
+      '<div class="tile-body">' +
+        '<div class="tile-name">' + esc(it.name) + '</div>' +
+        '<div class="tile-meta"><span>' + fmtSize(it.size) + '</span><span>' + fmtDate(it.uploaded) + '</span></div>' +
+      '</div>' +
+    '</div>';
+  }
+
+  function tileHtml(it) {
+    const sel = state.selected.has(it.key) ? ' sel' : '';
+    return '<div class="tile' + sel + '" data-key="' + esc(it.key) + '">' +
+      '<button class="tile-thumb" type="button" data-act="preview" aria-label="预览 ' + esc(it.name) + '">' +
+        '<img loading="lazy" src="' + esc(it.url) + '" alt="' + esc(it.name) + '">' +
+      '</button>' +
+      '<button class="tile-check" type="button" data-act="select" aria-label="选择这张">' + ICON.check + '</button>' +
+      '<div class="tile-body">' +
+        '<div class="tile-name">' + esc(it.name) + '</div>' +
+        '<div class="tile-meta"><span>' + fmtSize(it.size) + '</span><span>' + fmtDate(it.uploaded) + '</span></div>' +
+        '<div class="tile-acts">' +
+          '<button type="button" data-act="copy">' + ICON.copy + '链接</button>' +
+          '<button type="button" data-act="open">' + ICON.open + '打开</button>' +
+          '<button type="button" data-act="delete" class="del">' + ICON.trash + '删除</button>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  }
+
+  function rowHtml(it) {
+    const sel = state.selected.has(it.key) ? ' sel' : '';
+    return '<div class="row' + sel + '" data-key="' + esc(it.key) + '">' +
+      '<button class="row-check" type="button" data-act="select" aria-label="选择">' + ICON.check + '</button>' +
+      '<button class="row-thumb" type="button" data-act="preview" aria-label="预览">' +
+        '<img loading="lazy" src="' + esc(it.url) + '" alt="">' +
+      '</button>' +
+      '<div class="row-main">' +
+        '<div class="row-name">' + esc(it.name) + '</div>' +
+        '<div class="row-sub">' + esc(it.key) + ' · ' + fmtSize(it.size) + ' · ' + fmtDate(it.uploaded) + '</div>' +
+      '</div>' +
+      '<div class="row-acts">' +
+        '<button type="button" data-act="copy" title="复制链接">' + ICON.copy + '</button>' +
+        '<button type="button" data-act="open" title="打开">' + ICON.open + '</button>' +
+        '<button type="button" data-act="delete" class="del" title="删除">' + ICON.trash + '</button>' +
+      '</div>' +
+    '</div>';
+  }
+
+  function sortList(list) {
+    const out = list.slice();
+    if (cfg.sort === 'old') out.sort(function (a, b) { return a.uploaded - b.uploaded; });
+    else if (cfg.sort === 'big') out.sort(function (a, b) { return (b.size || 0) - (a.size || 0); });
+    else if (cfg.sort === 'name') out.sort(function (a, b) { return String(a.name).localeCompare(String(b.name), 'zh-CN'); });
+    else out.sort(function (a, b) { return b.uploaded - a.uploaded; });
+    return out;
+  }
+
+  function renderLibrary() {
+    state.selected.forEach(function (k) {
+      if (!state.items.some(function (i) { return i.key === k; })) state.selected.delete(k);
+    });
+
+    const q = state.search.trim().toLowerCase();
+    const list = sortList(state.items.filter(function (i) {
+      return !q || String(i.name).toLowerCase().indexOf(q) >= 0 || String(i.key).toLowerCase().indexOf(q) >= 0;
+    }));
+
+    const grid = $('grid');
+    const rows = $('rows');
+    const empty = $('libEmpty');
+    const useList = cfg.layout === 'list';
+
+    if (!list.length) {
+      grid.innerHTML = '';
+      rows.innerHTML = '';
+      empty.hidden = false;
+      $('libEmptyTitle').textContent = state.items.length ? '没有匹配的图片' : '图库里还没有东西';
+      $('libEmptyDesc').textContent = state.items.length ? '换个关键词，或者清空搜索框。' : '去「入库」上传第一批图片。';
+      $('libEmptyBtn').textContent = state.items.length ? '清空搜索' : '去上传';
+    } else {
+      empty.hidden = true;
+      grid.style.display = useList ? 'none' : '';
+      rows.style.display = useList ? 'none' : '';
+      if (useList) {
+        grid.innerHTML = '';
+        rows.innerHTML = list.map(rowHtml).join('');
+      } else {
+        rows.innerHTML = '';
+        grid.innerHTML = list.map(tileHtml).join('');
+      }
+    }
+    updateBulk();
+  }
+
+  function updateBulk() {
+    const n = state.selected.size;
+    $('bulkbar').classList.toggle('on', n > 0);
+    $('bulkCount').textContent = '已选 ' + n + ' 张';
+  }
+
+  function updateCapacity() {
+    const used = state.items.reduce(function (s, i) { return s + (i.size || 0); }, 0);
+    const gh = isGitHub();
+    $('capCap').textContent = gh ? '仓库参考' : '本机容量';
+    $('capValue').textContent = fmtSize(used);
+    $('capNote').textContent = state.items.length + ' 张 · ' + (gh ? '建议 1 GB 内' : '仅本机可见');
+
+    let total = gh ? REPO_SOFT_LIMIT : 0;
+    if (!gh && navigator.storage && navigator.storage.estimate) {
+      navigator.storage.estimate().then(function (est) {
+        if (est && est.quota) paintCap(used, est.quota);
+      }).catch(function () {});
+    }
+    paintCap(used, total);
+  }
+
+  function paintCap(used, total) {
+    const pct = total ? Math.min(100, (used / total) * 100) : 0;
+    $('capFill').style.width = (pct > 0 && pct < 1 ? 1 : pct) + '%';
+  }
+
+  /* ================= 链接与复制 ================= */
+  function linkOf(item, fmt) {
+    const f = fmt || cfg.linkFormat || 'url';
+    const u = item.url || '';
+    if (f === 'md') return '![' + item.name + '](' + u + ')';
+    if (f === 'html') return '<img src="' + u + '" alt="' + item.name + '" />';
+    if (f === 'bbcode') return '[img]' + u + '[/img]';
+    return u;
+  }
+
+  function copyText(text, okMsg) {
+    const fallback = function () {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.setAttribute('readonly', '');
+      ta.style.position = 'fixed';
+      ta.style.top = '-1000px';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      let ok = false;
+      try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+      ta.remove();
+      toast(ok ? (okMsg || '已复制') : '复制失败，手动选中文本复制', !ok);
+    };
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () {
+        toast(okMsg || '已复制');
+      }).catch(fallback);
+    } else {
+      fallback();
+    }
+  }
+
+  /* ================= 上传流程 ================= */
+  function enqueue(files) {
+    const list = Array.prototype.slice.call(files || []).filter(function (f) {
+      const isImg = (f.type && f.type.indexOf('image/') === 0) || /\.(jpe?g|png|gif|webp|avif|bmp|svg)$/i.test(f.name || '');
+      if (!isImg) return false;
+      if (f.size > MAX_BYTES) {
+        toast((f.name || '文件') + ' 超过 25 MB，已跳过', true);
+        return false;
+      }
+      return true;
+    });
+
+    if (!list.length) return;
+
+    // 上一批已结束的记录先清掉，避免队列越堆越长
+    state.queue = state.queue.filter(function (j) { return j.status !== 'done' && j.status !== 'error'; });
+
+    list.forEach(function (file) {
+      state.queue.push({ id: uid(), file: file, name: file.name, size: file.size, status: 'wait', progress: 0, msg: '' });
+    });
+    renderQueue();
+    pump();
+  }
+
+  function pump() {
+    while (running < CONCURRENCY) {
+      const job = state.queue.find(function (j) { return j.status === 'wait'; });
+      if (!job) break;
+      running++;
+      job.status = 'compress';
+      renderQueue();
+      runJob(job).then(function () {
+        running--;
+        pump();
+      });
+    }
+  }
+
+  function makeKey(name) {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = pad(d.getMonth() + 1);
+    const stamp = Date.now().toString(36);
+    const base = String(name || '').replace(/\.[^.]+$/, '');
+    // 英文名转成 slug 保留可读性，中文名转不出来就用随机串
+    const slug = base.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 24);
+    const tail = slug || Math.random().toString(36).slice(2, 6);
+    const ext = ((name || '').match(/\.([A-Za-z0-9]+)$/) || ['', 'bin'])[1].toLowerCase();
+    const p = (cfg.dir || '').replace(/^\/+/, '').replace(/\/+$/, '');
+    return (p ? p + '/' : '') + y + '/' + m + '/' + stamp + '-' + tail + '.' + ext;
+  }
+
+  // 上传前压缩：只对静态位图转 WebP；动图和矢量图原样上传
+  function shrink(file) {
+    if (!cfg.compress) return Promise.resolve(file);
+    if (!file.type || file.type.indexOf('image/') !== 0) return Promise.resolve(file);
+    if (file.type === 'image/gif' || file.type === 'image/svg+xml') return Promise.resolve(file);
+    if (typeof createImageBitmap !== 'function') return Promise.resolve(file);
+
+    return createImageBitmap(file).then(function (bmp) {
+      const edge = Number(cfg.maxEdge) || 0;
+      const scale = edge ? Math.min(1, edge / Math.max(bmp.width, bmp.height)) : 1;
+      const w = Math.max(1, Math.round(bmp.width * scale));
+      const h = Math.max(1, Math.round(bmp.height * scale));
+
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(bmp, 0, 0, w, h);
+      if (bmp.close) bmp.close();
+
+      const quality = Math.min(0.95, Math.max(0.4, (Number(cfg.quality) || 82) / 100));
+
+      return new Promise(function (resolve) {
+        canvas.toBlob(function (blob) {
+          if (!blob || blob.size >= file.size) { resolve(file); return; }
+          const name = file.name.replace(/\.[^.]+$/, '') + '.webp';
+          resolve(new File([blob], name, { type: 'image/webp', lastModified: Date.now() }));
+        }, 'image/webp', quality);
+      });
+    }).catch(function () {
+      return file; // 解不开就原样往上送，别把上传卡住
+    });
+  }
+
+  // GitHub Contents API 要 Base64，先把文件读成 data URL 再去掉前缀
+  function toBase64(file) {
+    return new Promise(function (resolve, reject) {
+      const reader = new FileReader();
+      reader.onload = function () {
+        const s = String(reader.result || '');
+        const i = s.indexOf(',');
+        resolve(i >= 0 ? s.slice(i + 1) : '');
+      };
+      reader.onerror = function () { reject(new Error('读不出文件内容')); };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function githubUpload(file, key, onProgress) {
+    return toBase64(file).then(function (b64) {
+      return new Promise(function (resolve, reject) {
+        const payload = JSON.stringify({
+          message: 'upload: ' + file.name,
+          content: b64,
+          branch: cfg.branch || 'main'
+        });
+
+        const xhr = new XMLHttpRequest();
+        xhr.open('PUT', repoApi() + '/contents/' + encodePath(key), true);
+        xhr.setRequestHeader('Authorization', 'Bearer ' + (cfg.token || '').trim());
+        xhr.setRequestHeader('Accept', 'application/vnd.github+json');
+        xhr.setRequestHeader('Content-Type', 'application/json');
+        xhr.setRequestHeader('X-GitHub-Api-Version', '2022-11-28');
+        xhr.timeout = 120000;
+
+        xhr.upload.onprogress = function (e) {
+          if (e.lengthComputable) onProgress(e.loaded / e.total);
+        };
+        xhr.onload = function () {
+          let data = null;
+          try { data = JSON.parse(xhr.responseText); } catch (e) { data = null; }
+          if (xhr.status >= 200 && xhr.status < 300 && data && data.content) {
+            resolve({ sha: data.content.sha, url: urlFor(key) });
+          } else {
+            reject(new Error(ghStatusError(xhr.status, data)));
+          }
+        };
+        xhr.onerror = function () {
+          reject(new Error('网络错误：可能是令牌无效、网络不通，或浏览器拦了请求'));
+        };
+        xhr.ontimeout = function () { reject(new Error('上传超时，文件可能太大')); };
+        xhr.send(payload);
+      });
+    });
+  }
+
+  function runJob(job) {
+    return shrink(job.file).then(function (file) {
+      job.name = file.name;
+      job.size = file.size;
+      job.status = 'upload';
+      job.progress = 0;
+      renderQueue();
+
+      const key = makeKey(file.name);
+
+      if (isGitHub()) {
+        return githubUpload(file, key, function (p) {
+          job.progress = p;
+          paintJob(job);
+        }).then(function (res) {
+          state.items.unshift({
+            key: key,
+            url: res.url,
+            name: file.name,
+            size: file.size,
+            type: file.type,
+            uploaded: Date.now(),
+            src: 'github',
+            sha: res.sha
+          });
+        });
+      }
+
+      return idb('readwrite', function (s) {
+        return s.put({
+          key: key,
+          blob: file,
+          name: file.name,
+          size: file.size,
+          type: file.type,
+          uploaded: Date.now()
+        });
+      }).then(function () {
+        const url = URL.createObjectURL(file);
+        objectUrls.push(url);
+        state.items.unshift({
+          key: key,
+          url: url,
+          name: file.name,
+          size: file.size,
+          type: file.type,
+          uploaded: Date.now(),
+          src: 'local'
+        });
+      });
+    }).then(function () {
+      job.status = 'done';
+      job.progress = 1;
+      renderQueue();
+      updateStatus();
+      renderRecent();
+      updateCapacity();
+      updateLocalStat();
+      if ($('view-library').classList.contains('on')) renderLibrary();
+    }).catch(function (err) {
+      job.status = 'error';
+      job.msg = (err && err.message) || '上传失败';
+      renderQueue();
+    });
+  }
+
+  function renderQueue() {
+    const box = $('queue');
+    const rows = state.queue.map(function (job) {
+      const pct = Math.round((job.progress || 0) * 100);
+      let stateText = '等待';
+      let stateCls = '';
+      let barCls = '';
+      if (job.status === 'compress') stateText = '压缩中';
+      else if (job.status === 'upload') stateText = pct + '%';
+      else if (job.status === 'done') { stateText = '完成'; stateCls = 'ok'; barCls = 'done'; }
+      else if (job.status === 'error') { stateText = job.msg || '失败'; stateCls = 'err'; barCls = 'err'; }
+
+      const retry = job.status === 'error'
+        ? '<button class="job-retry" type="button" data-retry="' + job.id + '">重试</button>'
+        : '';
+
+      return '<div class="job" data-job="' + job.id + '">' +
+        '<div class="job-name"><b>' + esc(job.name) + '</b><span class="job-size">' + fmtSize(job.size) + '</span></div>' +
+        '<div class="job-state ' + stateCls + '">' + esc(stateText) + '</div>' +
+        '<div class="job-bar-wrap"><div class="job-bar"><i class="' + barCls + '" style="width:' +
+          (job.status === 'done' ? 100 : job.status === 'error' ? 100 : pct) + '%"></i></div>' + retry + '</div>' +
+      '</div>';
+    });
+    box.innerHTML = rows.join('');
+  }
+
+  function paintJob(job) {
+    const bar = document.querySelector('[data-job="' + job.id + '"] i');
+    if (bar) bar.style.width = Math.round(job.progress * 100) + '%';
+    const txt = document.querySelector('[data-job="' + job.id + '"] .job-state');
+    if (txt) txt.textContent = Math.round(job.progress * 100) + '%';
+  }
+
+  /* ================= 灯箱 ================= */
+  function openLightbox(item) {
+    $('lbImg').src = item.url;
+    $('lbName').textContent = item.name;
+    $('lbMeta').textContent = fmtSize(item.size) + ' · ' + (item.src === 'github' ? 'GitHub' : '本机') + ' · ' + item.key;
+    $('lbLink').value = item.url;
+    $('lbOpen').href = item.url;
+    currentLb = item.key;
+    $('lightbox').classList.add('on');
+    $('lightbox').setAttribute('aria-hidden', 'false');
+  }
+
+  function closeLightbox() {
+    $('lightbox').classList.remove('on');
+    $('lightbox').setAttribute('aria-hidden', 'true');
+    $('lbImg').src = '';
+    currentLb = null;
+  }
+
+  /* ================= 删除 ================= */
+  function nameOf(key) {
+    const it = state.items.find(function (i) { return i.key === key; });
+    return it ? it.name : key;
+  }
+
+  function confirmDelete(keys) {
+    if (!keys.length) return;
+    pendingDelete = keys.slice();
+    $('cfTitle').textContent = keys.length > 1 ? '删除 ' + keys.length + ' 张图片' : '删除这张图片';
+    $('cfText').textContent = keys.length > 1
+      ? '会从仓库里删掉这些文件，删完不可恢复（jsDelivr 可能还会缓存一阵）。'
+      : '「' + nameOf(keys[0]) + '」会从仓库里删掉，删完不可恢复（jsDelivr 可能还会缓存一阵）。';
+    $('confirm').classList.add('on');
+  }
+
+  function doDelete(keys) {
+    const tasks = keys.map(function (key) {
+      const item = state.items.find(function (i) { return i.key === key; });
+      let work;
+
+      if (isGitHub()) {
+        if (!item) return Promise.resolve();
+        work = ghFetch('/repos/' + repoPath() + '/contents/' + encodePath(key), {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: 'delete: ' + item.name,
+            sha: item.sha,
+            branch: cfg.branch || 'main'
+          })
+        });
+      } else {
+        work = idb('readwrite', function (s) { return s.delete(key); });
+      }
+
+      return work.then(function () {
+        state.items = state.items.filter(function (i) { return i.key !== key; });
+        state.selected.delete(key);
+      }).catch(function (err) {
+        toast('「' + nameOf(key) + '」删除失败：' + err.message, true);
+      });
+    });
+
+    Promise.all(tasks).then(function () {
+      renderAll();
+      toast('已删除 ' + keys.length + ' 张');
+    });
+  }
+
+  /* ================= 设置 ================= */
+  function normalizeDir(v) {
+    return String(v || '').trim().replace(/^\/+/, '').replace(/\/+$/, '');
+  }
+
+  function fillSettings() {
+    $('ghRepo').value = cfg.repo || '';
+    $('ghBranch').value = cfg.branch || 'main';
+    $('ghDir').value = cfg.dir || '';
+    $('ghToken').value = cfg.token || '';
+    $('cdnSel').value = cfg.cdn || 'jsdelivr';
+    $('fmtSel').value = cfg.linkFormat || 'url';
+    Array.prototype.forEach.call(document.querySelectorAll('#modeSwitch button'), function (b) {
+      b.classList.toggle('on', b.dataset.mode === cfg.mode);
+    });
+    updateLocalStat();
+  }
+
+  function updateLocalStat() {
+    const local = state.items.filter(function (i) { return i.src === 'local'; });
+    const used = local.reduce(function (s, i) { return s + (i.size || 0); }, 0);
+    $('localStat').textContent = local.length
+      ? '本地已有 ' + local.length + ' 张 · ' + fmtSize(used)
+      : '本地库是空的';
+  }
+
+  Array.prototype.forEach.call(document.querySelectorAll('#modeSwitch button'), function (b) {
+    b.addEventListener('click', function () {
+      cfg.mode = b.dataset.mode;
+      saveCfg();
+      fillSettings();
+      updateStatus();
+      loadItems();
+      if (cfg.mode === 'github' && !isGitHub()) toast('还缺仓库名或令牌，先在下面填完再测');
+    });
+  });
+
+  $('settingsForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    cfg.repo = $('ghRepo').value.trim().replace(/^\/+|\/+$/g, '');
+    cfg.branch = $('ghBranch').value.trim() || 'main';
+    cfg.dir = normalizeDir($('ghDir').value);
+    cfg.token = $('ghToken').value.trim();
+    cfg.cdn = $('cdnSel').value;
+    cfg.linkFormat = $('fmtSel').value;
+    saveCfg();
+    fillSettings();
+    updateStatus();
+    loadItems();
+    toast('设置已保存');
+  });
+
+  $('testBtn').addEventListener('click', function () {
+    const out = $('testOut');
+    const repo = $('ghRepo').value.trim().replace(/^\/+|\/+$/g, '');
+    const branch = $('ghBranch').value.trim() || 'main';
+    const dir = normalizeDir($('ghDir').value);
+    const token = $('ghToken').value.trim();
+    const cdn = $('cdnSel').value;
+
+    if (!/^[^\s/]+\/[^\s/]+$/.test(repo) || !token) {
+      out.className = 'test-out err';
+      out.textContent = '仓库要写成 owner/repo，令牌别空着';
+      return;
+    }
+
+    out.className = 'test-out';
+    out.textContent = '检查中…';
+
+    ghProbe('/repos/' + repo, token)
+      .then(function (info) {
+        if (info.permissions && info.permissions.push === false) {
+          throw new Error('令牌没有写权限，Contents 要设成 Read and write');
+        }
+        return ghProbe('/repos/' + repo + '/git/trees/' + encodeURIComponent(branch), token)
+          .then(function () { return info; })
+          .catch(function () {
+            throw new Error('读不到分支 ' + branch + '，检查分支名，或先建一个 README 产生首次提交');
+          });
+      })
+      .then(function (info) {
+        cfg.repo = repo;
+        cfg.branch = branch;
+        cfg.dir = dir;
+        cfg.token = token;
+        cfg.cdn = cdn;
+        cfg.mode = 'github';
+        saveCfg();
+        fillSettings();
+        updateStatus();
+        loadItems();
+        out.className = 'test-out ok';
+        out.textContent = info.private
+          ? '已连接 · 私有仓库，外链别人打不开'
+          : '已连接 · 可以上传了';
+        toast('已连接到 GitHub 仓库');
+      })
+      .catch(function (err) {
+        out.className = 'test-out err';
+        out.textContent = '失败：' + err.message;
+      });
+  });
+
+  $('clearLocalBtn').addEventListener('click', function () {
+    pendingDelete = [];
+    $('cfTitle').textContent = '清空本地演示数据';
+    $('cfText').textContent = '会删掉本机 IndexedDB 里的全部图片，不影响 GitHub 仓库里的内容。';
+    $('confirm').classList.add('on');
+    $('cfOk').dataset.mode = 'wipe';
+  });
+
+  $('cfCancel').addEventListener('click', function () {
+    $('confirm').classList.remove('on');
+    $('cfOk').dataset.mode = '';
+    pendingDelete = [];
+  });
+
+  $('cfOk').addEventListener('click', function () {
+    const mode = $('cfOk').dataset.mode;
+    $('cfOk').dataset.mode = '';
+    $('confirm').classList.remove('on');
+
+    if (mode === 'wipe') {
+      idb('readwrite', function (s) { return s.clear(); }).then(function () {
+        toast('本地演示数据已清空');
+        if (!isGitHub()) loadItems(); else updateLocalStat();
+        renderAll();
+      }).catch(function (err) { toast('清空失败：' + err.message, true); });
+      return;
+    }
+
+    const keys = pendingDelete.slice();
+    pendingDelete = [];
+    if (keys.length) doDelete(keys);
+  });
+
+  /* ================= 图库交互 ================= */
+  $('searchInput').addEventListener('input', function (e) {
+    state.search = e.target.value;
+    renderLibrary();
+  });
+
+  $('sortSel').addEventListener('change', function (e) {
+    cfg.sort = e.target.value;
+    saveCfg();
+    renderLibrary();
+  });
+
+  Array.prototype.forEach.call(document.querySelectorAll('.seg [data-layout]'), function (b) {
+    b.addEventListener('click', function () {
+      cfg.layout = b.dataset.layout;
+      saveCfg();
+      syncLayoutButtons();
+      renderLibrary();
+    });
+  });
+
+  function syncLayoutButtons() {
+    Array.prototype.forEach.call(document.querySelectorAll('.seg [data-layout]'), function (b) {
+      const on = b.dataset.layout === cfg.layout;
+      b.classList.toggle('on', on);
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+  }
+
+  $('refreshBtn').addEventListener('click', function () {
+    loadItems().then(function () { toast('已刷新'); });
+  });
+
+  $('libEmptyBtn').addEventListener('click', function () {
+    if (state.items.length) {
+      state.search = '';
+      $('searchInput').value = '';
+      renderLibrary();
+    } else {
+      showView('upload');
+    }
+  });
+
+  $('emptyPick').addEventListener('click', function () { $('fileInput').click(); });
+
+  document.querySelectorAll('[data-bulk]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      const act = b.dataset.bulk;
+      const keys = Array.from(state.selected);
+
+      if (act === 'clear') {
+        state.selected.clear();
+        renderLibrary();
+        return;
+      }
+      if (!keys.length) return;
+
+      if (act === 'copy') {
+        const text = state.items
+          .filter(function (i) { return state.selected.has(i.key); })
+          .map(function (i) { return linkOf(i); })
+          .join('\n');
+        copyText(text, '已复制 ' + keys.length + ' 条链接');
+        return;
+      }
+      if (act === 'delete') confirmDelete(keys);
+    });
+  });
+
+  // 图库/最近入库的按钮统一走事件委托
+  document.addEventListener('click', function (e) {
+    const actEl = e.target.closest ? e.target.closest('[data-act]') : null;
+    if (!actEl) return;
+    const host = actEl.closest('.tile, .row');
+    if (!host) return;
+
+    const key = host.dataset.key;
+    const act = actEl.dataset.act;
+    const item = state.items.find(function (i) { return i.key === key; });
+    if (!item) return;
+
+    if (act === 'preview') {
+      openLightbox(item);
+    } else if (act === 'select') {
+      if (state.selected.has(key)) state.selected.delete(key);
+      else state.selected.add(key);
+      renderLibrary();
+    } else if (act === 'copy') {
+      copyText(linkOf(item), item.src === 'local'
+        ? '已复制 · 本地演示链接，刷新后失效'
+        : '已复制直链');
+    } else if (act === 'open') {
+      window.open(item.url, '_blank', 'noopener');
+    } else if (act === 'delete') {
+      confirmDelete([key]);
+    }
+  });
+
+  /* ================= 灯箱交互 ================= */
+  $('lbClose').addEventListener('click', closeLightbox);
+  $('lightbox').addEventListener('click', function (e) {
+    if (e.target === $('lightbox')) closeLightbox();
+  });
+  $('lbCopy').addEventListener('click', function () {
+    copyText($('lbLink').value, '已复制直链');
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') {
+      closeLightbox();
+      $('confirm').classList.remove('on');
+      $('cfOk').dataset.mode = '';
+    }
+    if (e.key === 'Enter' && currentLb !== null && document.activeElement === $('lbLink')) {
+      copyText($('lbLink').value, '已复制直链');
+    }
+  });
+
+  /* ================= 入库交互 ================= */
+  const dz = $('dropzone');
+  let dragDepth = 0;
+
+  dz.addEventListener('click', function () { $('fileInput').click(); });
+  dz.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      $('fileInput').click();
+    }
+  });
+  dz.addEventListener('dragenter', function (e) {
+    e.preventDefault();
+    dragDepth++;
+    dz.classList.add('drag');
+  });
+  dz.addEventListener('dragover', function (e) { e.preventDefault(); });
+  dz.addEventListener('dragleave', function () {
+    dragDepth = Math.max(0, dragDepth - 1);
+    if (!dragDepth) dz.classList.remove('drag');
+  });
+  dz.addEventListener('drop', function (e) {
+    e.preventDefault();
+    dragDepth = 0;
+    dz.classList.remove('drag');
+    if (e.dataTransfer && e.dataTransfer.files) enqueue(e.dataTransfer.files);
+  });
+
+  // 拖到窗口别处也不要让浏览器直接打开图片
+  window.addEventListener('dragover', function (e) { e.preventDefault(); });
+  window.addEventListener('drop', function (e) {
+    if (!dz.contains(e.target)) e.preventDefault();
+  });
+
+  $('fileInput').addEventListener('change', function (e) {
+    enqueue(e.target.files);
+    e.target.value = '';
+  });
+
+  document.addEventListener('paste', function (e) {
+    const tag = (e.target && e.target.tagName) || '';
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+    const clip = e.clipboardData;
+    if (!clip) return;
+
+    const files = Array.prototype.slice.call(clip.files || []);
+    if (!files.length) {
+      Array.prototype.forEach.call(clip.items || [], function (it) {
+        if (it.kind === 'file' && it.type.indexOf('image/') === 0) {
+          const f = it.getAsFile();
+          if (f) files.push(f);
+        }
+      });
+    }
+    if (files.length) {
+      e.preventDefault();
+      showView('upload');
+      enqueue(files);
+    }
+  });
+
+  document.addEventListener('click', function (e) {
+    const retry = e.target.closest ? e.target.closest('[data-retry]') : null;
+    if (!retry) return;
+    const job = state.queue.find(function (j) { return j.id === retry.dataset.retry; });
+    if (!job) return;
+    job.status = 'wait';
+    job.progress = 0;
+    job.msg = '';
+    renderQueue();
+    pump();
+  });
+
+  function syncControls() {
+    $('optCompress').checked = !!cfg.compress;
+    $('optQuality').value = String(cfg.quality);
+    $('qualityVal').textContent = String(cfg.quality);
+    $('optEdge').value = String(cfg.maxEdge || 0);
+    const off = !cfg.compress;
+    $('qualityWrap').style.opacity = off ? '0.45' : '1';
+    $('edgeWrap').style.opacity = off ? '0.45' : '1';
+    $('optQuality').disabled = off;
+    $('optEdge').disabled = off;
+  }
+
+  $('optCompress').addEventListener('change', function (e) {
+    cfg.compress = e.target.checked;
+    saveCfg();
+    syncControls();
+  });
+  $('optQuality').addEventListener('input', function (e) {
+    cfg.quality = Number(e.target.value);
+    $('qualityVal').textContent = String(cfg.quality);
+  });
+  $('optQuality').addEventListener('change', saveCfg);
+  $('optEdge').addEventListener('change', function (e) {
+    cfg.maxEdge = Number(e.target.value);
+    saveCfg();
+  });
+
+  /* ================= 部署页 ================= */
+  /* 部署页现在是纯文字说明，没有脚本逻辑 */
+
+  /* ================= 启动 ================= */
+  function init() {
+    syncControls();
+    syncLayoutButtons();
+    $('sortSel').value = cfg.sort || 'new';
+    fillSettings();
+    updateStatus();
+    loadItems();
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>
