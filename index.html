@@ -631,7 +631,7 @@ pre.code::-webkit-scrollbar-thumb{background:#3A3E44;border-radius:9px}
           <div class="field">
             <label for="ghDir">存放目录</label>
             <input class="input mono" id="ghDir" placeholder="img">
-            <div class="hint">新文件写到 img/2026/11/8f3a1c.webp 这类路径，按年月分开，列表只扫这个目录。</div>
+            <div class="hint">新图写到 img/2026/11/8f3a1c.webp 这类路径，按年月分开。图库不做目录限制，整个仓库里的图片都会列出来。</div>
           </div>
 
           <div class="field">
@@ -705,7 +705,7 @@ pre.code::-webkit-scrollbar-thumb{background:#3A3E44;border-radius:9px}
         </div>
 
         <div class="note">
-          <b>页面和图片可以放同一个仓库。</b>把这份 <code>index.html</code> 提交到仓库根目录，图片目录仍填 <code>img</code>，图库只会扫这个目录，不会把页面自己列进去。想给控制台一个固定网址，就在仓库 Settings → Pages 里选 Deploy from a branch、分支 main、目录 /root，之后用 <code>https://owner.github.io/repo/</code> 打开——这个地址是 https，剪贴板和粘贴上传都比本地文件更顺。
+          <b>页面和图片可以放同一个仓库。</b>把这份 <code>index.html</code> 提交到仓库根目录，新图默认写进 <code>img/</code>；图库遍历的是整个仓库的图片，<code>index.html</code> 不会被列进去，根目录里早先放的老图也会一起显示。想给控制台一个固定网址，就在仓库 Settings → Pages 里选 Deploy from a branch、分支 master、目录 /root，之后用 <code>https://owner.github.io/repo/</code> 打开——这个地址是 https，剪贴板和粘贴上传都比本地文件更顺。
         </div>
 
         <div class="note">
@@ -866,12 +866,20 @@ pre.code::-webkit-scrollbar-thumb{background:#3A3E44;border-radius:9px}
   // 文件名里带了 base36 时间戳（时间戳-随机串.ext），列表接口不返回时间，
   // 就从文件名还原；老文件退回按 yyyy/mm 目录推算。
   function uploadedFrom(key) {
-    const base = String(key).split('/').pop().replace(/\.[^.]+$/, '');
+    const path = String(key);
+    const base = path.split('/').pop().replace(/\.[^.]+$/, '');
     const stamp = base.split('-')[0];
     const ms = parseInt(stamp, 36);
     if (ms > 1300000000000 && ms < 3000000000000) return ms;
-    const m = String(key).match(/\/(\d{4})\/(\d{2})\//);
+    const ep = base.match(/^(\d{10,13})$/);
+    if (ep) {
+      const v = Number(ep[1]) * (ep[1].length === 10 ? 1000 : 1);
+      if (v > 1300000000000 && v < 3000000000000) return v;
+    }
+    const m = path.match(/\/(\d{4})\/(\d{2})\//);
     if (m) return new Date(Number(m[1]), Number(m[2]) - 1, 1).getTime();
+    const d = path.match(/(?:^|\/)(\d{4})(\d{2})(\d{2})(?:\/|$)/);
+    if (d) return new Date(Number(d[1]), Number(d[2]) - 1, Number(d[3])).getTime();
     return 0;
   }
 
@@ -1043,15 +1051,14 @@ pre.code::-webkit-scrollbar-thumb{background:#3A3E44;border-radius:9px}
     };
 
     if (isGitHub()) {
-      const branch = encodeURIComponent(cfg.branch || 'main');
-      const dir = (cfg.dir || '').replace(/^\/+/, '').replace(/\/+$/, '');
+      const branch = encodeURIComponent(cfg.branch || 'master');
 
       return ghFetch('/repos/' + repoPath() + '/git/trees/' + branch + '?recursive=1')
         .then(function (data) {
           state.items = (data.tree || []).filter(function (t) {
             if (t.type !== 'blob') return false;
-            if (!/\.(jpe?g|png|gif|webp|avif|bmp|svg)$/i.test(t.path)) return false;
-            return !dir || t.path === dir || t.path.indexOf(dir + '/') === 0;
+            if (/\.html?$/i.test(t.path)) return false;
+            return /\.(jpe?g|png|gif|webp|avif|bmp|svg|ico)$/i.test(t.path);
           }).map(function (t) {
             return {
               key: t.path,
