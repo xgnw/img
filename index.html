@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>图床控制台 · GitHub 图床</title>
+<title>简单图床</title>
 <!-- 字体：先 preconnect，再正常加载样式表；不预加载具体分片，避免猜错地址 -->
 <link rel="preconnect" href="https://miaoda.feishu.cn">
 <link rel="stylesheet" href="https://miaoda.feishu.cn/fonts/css2?family=Noto+Sans+SC:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
@@ -437,6 +437,21 @@ pre.code::-webkit-scrollbar-thumb{background:#3A3E44;border-radius:9px}
 @media (min-width:600px){
   .cap{width:210px}
 }
+
+/* ---------- 身份 / 登录 ---------- */
+.tab[hidden]{display:none}
+.role-line{font-size:10px;letter-spacing:.02em;color:#7C838B;margin-bottom:6px}
+.role-line b{color:#D9DCD6;font-weight:500;letter-spacing:0}
+.role-btn{display:block;width:100%;padding:6px 9px;border:1px solid var(--rail-soft);border-radius:5px;background:transparent;color:#C9CDD3;font:inherit;font-size:11px;cursor:pointer;text-align:center}
+.role-btn:hover{border-color:var(--accent);color:var(--accent)}
+.login-box{background:var(--surface);border-radius:var(--r);padding:18px;max-width:392px;width:100%;border-top:3px solid var(--accent)}
+.login-box h3{font-size:14px}
+.login-box p{font-size:12px;color:var(--mute);margin:5px 0 0;line-height:1.6}
+.login-box .field{margin-top:12px}
+.login-out{font-size:11.5px;margin-top:10px;min-height:16px;color:var(--mute)}
+.login-out.err{color:var(--danger)}
+.login-out.ok{color:#3F7D4E}
+.login-acts{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
 </style>
 </head>
 <body>
@@ -450,7 +465,7 @@ pre.code::-webkit-scrollbar-thumb{background:#3A3E44;border-radius:9px}
         <path d="M3 12.5l9 5 9-5" stroke="#EFC53F" stroke-width="1.6" fill="none" opacity=".5"/>
         <path d="M3 17l9 5 9-5" stroke="#EFC53F" stroke-width="1.6" fill="none" opacity=".26"/>
       </svg>
-      <span class="brand-name">图床</span>
+      <span class="brand-name">简单图床</span>
     </div>
     <nav class="tabs" aria-label="主导航">
       <button class="tab on" data-view="upload" type="button">
@@ -470,7 +485,11 @@ pre.code::-webkit-scrollbar-thumb{background:#3A3E44;border-radius:9px}
         <span>部署</span>
       </button>
     </nav>
-    <div class="rail-foot">GitHub · jsDelivr<br>单文件控制台</div>
+    <div class="rail-foot">
+      <div class="role-line">当前身份 <b id="roleText">未登录</b></div>
+      <button class="role-btn" id="roleBtn" type="button">登录</button>
+      <div style="margin-top:8px">GitHub · jsDelivr</div>
+    </div>
   </aside>
 
   <main class="main">
@@ -479,8 +498,8 @@ pre.code::-webkit-scrollbar-thumb{background:#3A3E44;border-radius:9px}
       <!-- 顶栏 -->
       <header class="topbar">
         <div class="head">
-          <h1>图床控制台</h1>
-          <p class="sub">图片存进 GitHub 仓库，用 jsDelivr 出链。没配仓库时走本地演示，数据只留在本机浏览器。</p>
+          <h1>简单图床</h1>
+          <p class="sub">未登录也能浏览仓库里的公开图片、复制直链；登录后解锁上传、删除和全部设置。</p>
         </div>
         <div class="statuses">
           <span class="chip local" id="modeChip"><span class="dot"></span><span id="modeText">本地演示</span></span>
@@ -758,6 +777,27 @@ pre.code::-webkit-scrollbar-thumb{background:#3A3E44;border-radius:9px}
 
 <div class="toast" id="toast"><span class="bar"></span><span id="toastText"></span></div>
 
+<!-- 登录 -->
+<div class="confirm" id="loginModal">
+  <div class="login-box">
+    <h3>登录</h3>
+    <p>填一个只勾本仓库 Contents: Read and write 的 fine-grained 令牌。令牌只存在这台浏览器里，登录后解锁上传、删除和设置。</p>
+    <div class="field">
+      <label for="lgRepo">仓库</label>
+      <input class="input mono" id="lgRepo" placeholder="owner/repo" autocomplete="off">
+    </div>
+    <div class="field">
+      <label for="lgToken">访问令牌</label>
+      <input class="input mono" id="lgToken" type="password" placeholder="github_pat_…" autocomplete="off">
+    </div>
+    <div class="login-out" id="loginOut"></div>
+    <div class="login-acts">
+      <button class="btn btn-sm" type="button" id="lgCancel">取消</button>
+      <button class="btn btn-sm btn-primary" type="button" id="lgOk">登录</button>
+    </div>
+  </div>
+</div>
+
 
 
 <!-- ===== 控制台脚本 ===== -->
@@ -774,7 +814,7 @@ pre.code::-webkit-scrollbar-thumb{background:#3A3E44;border-radius:9px}
   const CONCURRENCY = 3;
 
   const DEFAULTS = {
-    mode: 'local',
+    mode: 'github',
     repo: 'xgnw/img',
     branch: 'master',
     dir: 'img',
@@ -996,7 +1036,11 @@ pre.code::-webkit-scrollbar-thumb{background:#3A3E44;border-radius:9px}
   function ghStatusError(status, data) {
     const msg = (data && data.message) || '';
     if (status === 401) return '令牌无效或已过期（401）';
-    if (status === 403) return '权限不足，或撞上每小时 5000 次的限流（403）';
+    if (status === 403) {
+      return (cfg.token || '').trim()
+        ? '权限不足，或撞上每小时 5000 次的限流（403）'
+        : '读取被限流（403）：匿名请求每小时只有 60 次，等一会儿再刷新';
+    }
     if (status === 404) return '仓库、分支或路径不存在（404），检查 owner/repo 与令牌授权范围';
     if (status === 409) return '仓库是空的（409），先建一个 README 产生首次提交';
     if (status === 422) return '请求被拒绝（422）' + (msg ? '：' + msg : '，多半是同名文件已存在');
@@ -1005,11 +1049,14 @@ pre.code::-webkit-scrollbar-thumb{background:#3A3E44;border-radius:9px}
 
   function ghFetch(path, options) {
     const opt = Object.assign({ method: 'GET' }, options || {});
-    opt.headers = Object.assign({
-      Authorization: 'Bearer ' + (cfg.token || '').trim(),
+    const token = (cfg.token || '').trim();
+    const headers = {
       Accept: 'application/vnd.github+json',
       'X-GitHub-Api-Version': '2022-11-28'
-    }, opt.headers || {});
+    };
+    // 未登录时读公开仓库不带令牌（匿名每小时 60 次）
+    if (token) headers.Authorization = 'Bearer ' + token;
+    opt.headers = Object.assign(headers, opt.headers || {});
 
     return fetch('https://api.github.com' + path, opt).then(function (res) {
       return res.text().then(function (text) {
@@ -1050,7 +1097,8 @@ pre.code::-webkit-scrollbar-thumb{background:#3A3E44;border-radius:9px}
       updateCapacity();
     };
 
-    if (isGitHub()) {
+    // 仓库配了就直读公开树；带令牌时顺带拿到写权限，未登录时只读
+    if (/^[^\s/]+\/[^\s/]+$/.test(repoPath())) {
       const branch = encodeURIComponent(cfg.branch || 'master');
 
       return ghFetch('/repos/' + repoPath() + '/git/trees/' + branch + '?recursive=1')
@@ -1112,14 +1160,32 @@ pre.code::-webkit-scrollbar-thumb{background:#3A3E44;border-radius:9px}
 
   function updateStatus() {
     const chip = $('modeChip');
-    const gh = isGitHub();
-    chip.classList.toggle('local', !gh && cfg.mode !== 'github');
-    chip.classList.toggle('remote', !!gh);
-    chip.classList.toggle('warn', cfg.mode === 'github' && !gh);
-    $('modeText').textContent = gh
-      ? 'GitHub 仓库'
-      : (cfg.mode === 'github' ? '仓库未配置' : '本地演示');
-    $('destLabel').textContent = gh ? '存入 GitHub 仓库' : '存入本机演示库';
+    const logged = isGitHub();
+    const remote = /^[^\s/]+\/[^\s/]+$/.test(repoPath());
+
+    chip.classList.toggle('local', !remote);
+    chip.classList.toggle('remote', remote);
+    chip.classList.toggle('warn', false);
+
+    $('modeText').textContent = logged
+      ? '已登录 · 可读写'
+      : (remote ? '未登录 · 只读' : '本地演示');
+    $('destLabel').textContent = logged ? '存入 GitHub 仓库' : '存入本机演示库';
+    $('roleText').textContent = logged ? '已登录' : '未登录';
+    $('roleBtn').textContent = logged ? '退出登录' : '登录';
+
+    // 上传、设置、部署只对已登录开放；未登录只剩图库
+    Array.prototype.forEach.call(document.querySelectorAll('.tab'), function (t) {
+      const needLogin = t.dataset.view === 'upload' || t.dataset.view === 'settings' || t.dataset.view === 'deploy';
+      t.hidden = needLogin && !logged;
+      if (t.hidden && t.classList.contains('on')) showView('library');
+    });
+
+    // 未登录时清掉可能残留的批量选择
+    if (!logged && state.selected.size) {
+      state.selected.clear();
+      updateBulk();
+    }
   }
 
   function renderRecent() {
@@ -1150,28 +1216,30 @@ pre.code::-webkit-scrollbar-thumb{background:#3A3E44;border-radius:9px}
   }
 
   function tileHtml(it) {
-    const sel = state.selected.has(it.key) ? ' sel' : '';
+    const admin = isGitHub();
+    const sel = admin && state.selected.has(it.key) ? ' sel' : '';
     return '<div class="tile' + sel + '" data-key="' + esc(it.key) + '">' +
       '<button class="tile-thumb" type="button" data-act="preview" aria-label="预览 ' + esc(it.name) + '">' +
         '<img loading="lazy" ' + imgAttrs(it) + ' alt="' + esc(it.name) + '">' +
       '</button>' +
-      '<button class="tile-check" type="button" data-act="select" aria-label="选择这张">' + ICON.check + '</button>' +
+      (admin ? '<button class="tile-check" type="button" data-act="select" aria-label="选择这张">' + ICON.check + '</button>' : '') +
       '<div class="tile-body">' +
         '<div class="tile-name">' + esc(it.name) + '</div>' +
         '<div class="tile-meta"><span>' + fmtSize(it.size) + '</span><span>' + fmtDate(it.uploaded) + '</span></div>' +
         '<div class="tile-acts">' +
           '<button type="button" data-act="copy">' + ICON.copy + '链接</button>' +
           '<button type="button" data-act="open">' + ICON.open + '打开</button>' +
-          '<button type="button" data-act="delete" class="del">' + ICON.trash + '删除</button>' +
+          (admin ? '<button type="button" data-act="delete" class="del">' + ICON.trash + '删除</button>' : '') +
         '</div>' +
       '</div>' +
     '</div>';
   }
 
   function rowHtml(it) {
-    const sel = state.selected.has(it.key) ? ' sel' : '';
+    const admin = isGitHub();
+    const sel = admin && state.selected.has(it.key) ? ' sel' : '';
     return '<div class="row' + sel + '" data-key="' + esc(it.key) + '">' +
-      '<button class="row-check" type="button" data-act="select" aria-label="选择">' + ICON.check + '</button>' +
+      (admin ? '<button class="row-check" type="button" data-act="select" aria-label="选择">' + ICON.check + '</button>' : '') +
       '<button class="row-thumb" type="button" data-act="preview" aria-label="预览">' +
         '<img loading="lazy" ' + imgAttrs(it) + ' alt="">' +
       '</button>' +
@@ -1182,7 +1250,7 @@ pre.code::-webkit-scrollbar-thumb{background:#3A3E44;border-radius:9px}
       '<div class="row-acts">' +
         '<button type="button" data-act="copy" title="复制链接">' + ICON.copy + '</button>' +
         '<button type="button" data-act="open" title="打开">' + ICON.open + '</button>' +
-        '<button type="button" data-act="delete" class="del" title="删除">' + ICON.trash + '</button>' +
+        (admin ? '<button type="button" data-act="delete" class="del" title="删除">' + ICON.trash + '</button>' : '') +
       '</div>' +
     '</div>';
   }
@@ -1216,8 +1284,10 @@ pre.code::-webkit-scrollbar-thumb{background:#3A3E44;border-radius:9px}
       rows.innerHTML = '';
       empty.hidden = false;
       $('libEmptyTitle').textContent = state.items.length ? '没有匹配的图片' : '图库里还没有东西';
-      $('libEmptyDesc').textContent = state.items.length ? '换个关键词，或者清空搜索框。' : '去「入库」上传第一批图片。';
-      $('libEmptyBtn').textContent = state.items.length ? '清空搜索' : '去上传';
+      $('libEmptyDesc').textContent = state.items.length
+        ? '换个关键词，或者清空搜索框。'
+        : (isGitHub() ? '去「入库」上传第一批图片。' : '仓库里暂时没有图片，登录后可以上传。');
+      $('libEmptyBtn').textContent = state.items.length ? '清空搜索' : (isGitHub() ? '去上传' : '登录');
     } else {
       empty.hidden = true;
       grid.style.display = useList ? 'none' : '';
@@ -1241,7 +1311,7 @@ pre.code::-webkit-scrollbar-thumb{background:#3A3E44;border-radius:9px}
 
   function updateCapacity() {
     const used = state.items.reduce(function (s, i) { return s + (i.size || 0); }, 0);
-    const gh = isGitHub();
+    const gh = /^[^\s/]+\/[^\s/]+$/.test(repoPath());
     $('capCap').textContent = gh ? '仓库参考' : '本机容量';
     $('capValue').textContent = fmtSize(used);
     $('capNote').textContent = state.items.length + ' 张 · ' + (gh ? '建议 1 GB 内' : '仅本机可见');
@@ -1569,6 +1639,7 @@ pre.code::-webkit-scrollbar-thumb{background:#3A3E44;border-radius:9px}
 
   function confirmDelete(keys) {
     if (!keys.length) return;
+    if (!isGitHub()) { toast('未登录不能删除，先登录', true); openLogin(); return; }
     pendingDelete = keys.slice();
     $('cfTitle').textContent = keys.length > 1 ? '删除 ' + keys.length + ' 张图片' : '删除这张图片';
     $('cfText').textContent = keys.length > 1
@@ -1785,12 +1856,17 @@ pre.code::-webkit-scrollbar-thumb{background:#3A3E44;border-radius:9px}
       state.search = '';
       $('searchInput').value = '';
       renderLibrary();
-    } else {
+    } else if (isGitHub()) {
       showView('upload');
+    } else {
+      openLogin();
     }
   });
 
-  $('emptyPick').addEventListener('click', function () { $('fileInput').click(); });
+  $('emptyPick').addEventListener('click', function () {
+    if (!isGitHub()) { openLogin(); return; }
+    $('fileInput').click();
+  });
 
   document.querySelectorAll('[data-bulk]').forEach(function (b) {
     b.addEventListener('click', function () {
@@ -1831,6 +1907,7 @@ pre.code::-webkit-scrollbar-thumb{background:#3A3E44;border-radius:9px}
     if (act === 'preview') {
       openLightbox(item);
     } else if (act === 'select') {
+      if (!isGitHub()) { toast('未登录不能批量选择，先登录', true); openLogin(); return; }
       if (state.selected.has(key)) state.selected.delete(key);
       else state.selected.add(key);
       renderLibrary();
@@ -1858,6 +1935,7 @@ pre.code::-webkit-scrollbar-thumb{background:#3A3E44;border-radius:9px}
       closeLightbox();
       $('confirm').classList.remove('on');
       $('cfOk').dataset.mode = '';
+      if ($('loginModal').classList.contains('on')) closeLogin();
     }
     if (e.key === 'Enter' && currentLb !== null && document.activeElement === $('lbLink')) {
       copyText($('lbLink').value, '已复制直链');
@@ -1868,10 +1946,14 @@ pre.code::-webkit-scrollbar-thumb{background:#3A3E44;border-radius:9px}
   const dz = $('dropzone');
   let dragDepth = 0;
 
-  dz.addEventListener('click', function () { $('fileInput').click(); });
+  dz.addEventListener('click', function () {
+    if (!isGitHub()) { openLogin(); return; }
+    $('fileInput').click();
+  });
   dz.addEventListener('keydown', function (e) {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
+      if (!isGitHub()) { openLogin(); return; }
       $('fileInput').click();
     }
   });
@@ -1967,6 +2049,76 @@ pre.code::-webkit-scrollbar-thumb{background:#3A3E44;border-radius:9px}
   /* ================= 部署页 ================= */
   /* 部署页现在是纯文字说明，没有脚本逻辑 */
 
+  /* ================= 登录 ================= */
+  function openLogin() {
+    $('lgRepo').value = cfg.repo || '';
+    $('lgToken').value = '';
+    $('loginOut').textContent = '';
+    $('loginOut').className = 'login-out';
+    $('loginModal').classList.add('on');
+    $('loginModal').setAttribute('aria-hidden', 'false');
+    setTimeout(function () { $('lgRepo').focus(); }, 60);
+  }
+
+  function closeLogin() {
+    $('loginModal').classList.remove('on');
+    $('loginModal').setAttribute('aria-hidden', 'true');
+  }
+
+  function loginFail(msg) {
+    const out = $('loginOut');
+    out.textContent = msg;
+    out.className = 'login-out err';
+  }
+
+  $('roleBtn').addEventListener('click', function () {
+    if (!isGitHub()) { openLogin(); return; }
+    cfg.token = '';
+    cfg.mode = 'github';
+    saveCfg();
+    updateStatus();
+    renderAll();
+    toast('已退出登录，现在只能浏览');
+  });
+
+  $('lgCancel').addEventListener('click', closeLogin);
+
+  $('lgOk').addEventListener('click', function () {
+    const repo = $('lgRepo').value.trim().replace(/^\/+|\/+$/g, '');
+    const token = $('lgToken').value.trim();
+    if (!repo || !token) { loginFail('仓库和令牌都要填'); return; }
+    const btn = this;
+    btn.disabled = true;
+    btn.textContent = '校验中…';
+    ghProbe('/repos/' + repo, token).then(function (data) {
+      const perms = (data && data.permissions) || {};
+      if (!perms.push) {
+        loginFail('令牌能读仓库但没有写权限，检查 Contents 是否为 Read and write');
+        return;
+      }
+      cfg.mode = 'github';
+      cfg.repo = repo;
+      cfg.token = token;
+      saveCfg();
+      $('loginOut').textContent = '登录成功';
+      $('loginOut').className = 'login-out ok';
+      updateStatus();
+      fillSettings();
+      loadItems();
+      setTimeout(closeLogin, 700);
+      toast('已登录，上传、删除、设置都解锁了');
+    }).catch(function (err) {
+      loginFail(err.message || '校验失败');
+    }).then(function () {
+      btn.disabled = false;
+      btn.textContent = '登录';
+    });
+  });
+
+  $('loginModal').addEventListener('click', function (e) {
+    if (e.target === this) closeLogin();
+  });
+
   /* ================= 启动 ================= */
   function init() {
     syncControls();
@@ -1974,6 +2126,7 @@ pre.code::-webkit-scrollbar-thumb{background:#3A3E44;border-radius:9px}
     $('sortSel').value = cfg.sort || 'new';
     fillSettings();
     updateStatus();
+    if (!isGitHub()) showView('library');
     loadItems();
   }
 
